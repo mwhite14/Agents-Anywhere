@@ -678,7 +678,6 @@
     <string name="profile_email_unverified">未验证</string>
     <string name="home_sessions_title">会话</string>
     <string name="home_mark_all_read">全部已读</string>
-    <string name="workspace_home">主目录</string>
     <string name="workspace_resolving_home">正在解析主目录…</string>
     <string name="workspace_resolve_failed">无法解析此目录，请重试。</string>
     <string name="workspace_browse">浏览文件系统</string>

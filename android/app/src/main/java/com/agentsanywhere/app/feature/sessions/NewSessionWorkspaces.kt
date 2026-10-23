@@ -47,15 +47,27 @@ private fun workspaceSessionComparator(now: Long): Comparator<AgentSession> = Co
     }
 }
 
-private fun workspaceProjectComparator(): Comparator<AgentProject> {
+private fun workspaceProjectComparator(): Comparator<AgentProject> = Comparator { left, right ->
     val collator = Collator.getInstance()
-    return compareByDescending<AgentProject> { it.pinned }
-        .thenByDescending {
-            timestampMillis(it.pinnedAt?.takeIf(String::isNotEmpty)
-                ?: it.lastActivityAt?.takeIf(String::isNotEmpty) ?: it.updatedAt)
-        }
-        .thenComparator { left, right ->
-            collator.compare(left.name, right.name).takeIf { it != 0 }
+    when {
+        left.pinned != right.pinned -> if (left.pinned) -1 else 1
+        else -> {
+            val leftTime = timestampMillis(left.pinnedAt?.takeIf(String::isNotEmpty)
+                ?: left.lastActivityAt?.takeIf(String::isNotEmpty) ?: left.updatedAt)
+            val rightTime = timestampMillis(right.pinnedAt?.takeIf(String::isNotEmpty)
+                ?: right.lastActivityAt?.takeIf(String::isNotEmpty) ?: right.updatedAt)
+            rightTime.compareTo(leftTime).takeIf { it != 0 }
+                ?: collator.compare(left.name, right.name).takeIf { it != 0 }
                 ?: collator.compare(left.id, right.id)
         }
+    }
+}
+
+/**
+ * The workspace a new session starts in when the user has not picked one: the first project
+ * shown in the picker for this device, so the default and the visible list never disagree.
+ */
+internal fun defaultWorkspaceProject(projects: List<AgentProject>, connectorId: String?): AgentProject? {
+    val available = if (connectorId.isNullOrBlank()) projects else projects.filter { it.connectorId == connectorId }
+    return available.sortedWith(workspaceProjectComparator()).firstOrNull()
 }

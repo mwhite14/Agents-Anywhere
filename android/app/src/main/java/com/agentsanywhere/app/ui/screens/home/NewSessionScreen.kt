@@ -56,6 +56,7 @@ import com.agentsanywhere.app.model.AgentProject
 import com.agentsanywhere.app.model.AgentSession
 import com.agentsanywhere.app.feature.sessions.availableProjectName
 import com.agentsanywhere.app.feature.sessions.activeNewSessionRuntimes
+import com.agentsanywhere.app.feature.sessions.defaultWorkspaceProject
 import com.agentsanywhere.app.feature.sessions.workspaceProject
 import com.agentsanywhere.app.feature.sessions.workspaceProjectName
 import com.agentsanywhere.app.feature.sessions.workspacePathKey
@@ -247,13 +248,15 @@ fun NewSessionScreen(
     LaunchedEffect(projects, sessionsState.hasLoaded) {
         val requested = pendingInitialProjectId?.let { id -> projects.firstOrNull { it.id == id } }
         val current = projects.firstOrNull { it.id == selectedProjectId }
-        val next = requested ?: current
+        // A new session picks a workspace, never the bare home directory: the first
+        // project (most recent, then pinned) is preselected so a session always has one.
+        val next = requested ?: current ?: defaultWorkspaceProject(projects, selectedDeviceId)
         if (requested != null) selectedDeviceId = requested.connectorId
         if (next?.id != selectedProjectId) {
             selectedProjectId = next?.id
             if (next == null && !creatingProject) {
-                selectedWorkspacePath = homePath.orEmpty()
-                currentPath = selectedWorkspacePath
+                selectedWorkspacePath = ""
+                currentPath = homePath.orEmpty()
             }
         }
         if (requested != null || sessionsState.hasLoaded) {
@@ -459,16 +462,18 @@ fun NewSessionScreen(
         homePath = resolved
     }
 
-    LaunchedEffect(homePath, selectedDevice?.id, hasAvailableSelectedRuntime, creatingProject, choosePath) {
+    LaunchedEffect(homePath, selectedDevice?.id, hasAvailableSelectedRuntime, creatingProject, choosePath, projects) {
         val deviceId = selectedDevice?.id ?: return@LaunchedEffect
         val resolved = homePath ?: return@LaunchedEffect
         // Do not lock onto a home-directory project before an available Agent determines the device.
-        if (!creatingProject && !choosePath && hasAvailableSelectedRuntime && selectedWorkspacePath.isBlank()) {
-            val project = workspaceProject(projects, deviceId, resolved, selectedDeviceOs)
-            selectedProjectId = project?.id
-            selectedWorkspacePath = project?.workspacePath ?: resolved
-            currentPath = selectedWorkspacePath
-        }
+        if (creatingProject || choosePath || !hasAvailableSelectedRuntime || selectedWorkspacePath.isNotBlank()) return@LaunchedEffect
+        // Falling back to home let a new session start outside every project, which is not a
+        // workspace the app can manage. Wait for the device to be known, then take the first
+        // project; with no project at all the workspace stays empty and Start chat is unavailable.
+        val project = defaultWorkspaceProject(projects, deviceId)
+        selectedProjectId = project?.id
+        selectedWorkspacePath = project?.workspacePath.orEmpty()
+        currentPath = project?.workspacePath ?: resolved
     }
 
     LaunchedEffect(selectedWorkspacePath, selectedDeviceId, projects, creatingProject) {
