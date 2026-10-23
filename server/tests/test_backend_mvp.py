@@ -1566,11 +1566,11 @@ class FakeLocalRpc:
                             "runtime": params["runtime"],
                             "sessionId": session_id,
                             "supported": True,
-                            "available": not session_is_running,
+                            "available": params["runtime"] == "dsh" or not session_is_running,
                             "allowed": True,
                             "unavailableReason": (
                                 "runtime_turn_running"
-                                if session_is_running
+                                if session_is_running and params["runtime"] != "dsh"
                                 else None
                             ),
                             "parameters": {},
@@ -5270,7 +5270,7 @@ def test_send_message_starts_new_turn_from_error_state(tmp_path):
     assert params["content"] == "try again"
 
 
-def test_send_message_rejects_running_state(tmp_path):
+def test_send_message_rejects_running_state_when_runtime_cannot_queue(tmp_path):
     client = make_client(tmp_path)
     connector_id, _, session_id, headers = create_connector_and_session(client)
     fake_rpc = FakeLocalRpc()
@@ -5293,8 +5293,38 @@ def test_send_message_rejects_running_state(tmp_path):
     )
 
     assert response.status_code == 409, response.text
-    assert response.json()["detail"] == "session is running"
+    assert response.json()["detail"] == (
+        "session capability is unavailable: session.send_message"
+    )
     assert not any(method == "session.send_message" for _, method, _, _ in fake_rpc.requests)
+
+
+def test_send_message_queues_while_dsh_turn_is_running(tmp_path):
+    client = make_client(tmp_path)
+    connector_id, _, session_id, headers = create_connector_and_session(client, runtime="dsh")
+    fake_rpc = FakeLocalRpc()
+    fake_rpc.runtime_states[session_id] = {
+        "sessionId": session_id,
+        "runtime": "dsh",
+        "externalSessionId": f"dsh_{connector_id}_demo",
+        "status": "running",
+        "selections": {},
+        "metadata": {"source": "test.turn.running"},
+    }
+    client.app.state.rpc = fake_rpc
+    asyncio.run(client.app.state.store.set_connector_status(connector_id, "online"))
+    client.post(f"/sessions/{session_id}/takeover", headers=headers).raise_for_status()
+
+    response = client.post(
+        f"/sessions/{session_id}/runtime/messages",
+        headers=headers,
+        json={"content": "queue this"},
+    )
+
+    assert response.status_code == 200, response.text
+    params = wait_for_rpc_method(fake_rpc, "session.send_message")[2]
+    assert params["content"] == "queue this"
+    assert asyncio.run(client.app.state.store.get_active_run(session_id)) is None
 
 
 @pytest.mark.skip(reason="legacy persisted notice behavior was removed; notices are runtime-owned live facts")

@@ -1213,11 +1213,14 @@ export function SessionDetail({
       item: optimisticMessage,
     })
     const previousRuntimeState = state?.state ?? null
+    // A message sent during a running turn is queued, not a new turn: keep the
+    // running state until the runtime reports the queue.
+    const optimisticStatus = previousRuntimeState?.status === "running" ? "running" : "waiting"
     setState((current) => {
       if (!current) return current
       return {
         ...current,
-        state: nextOptimisticRuntimeState(current.state, current.session, "waiting"),
+        state: nextOptimisticRuntimeState(current.state, current.session, optimisticStatus),
         items: mergeTimelineItems(current.items, [optimisticMessage]),
       }
     })

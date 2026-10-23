@@ -1295,13 +1295,23 @@ fun SessionDetailScreen(
     val commandLookupPending = slashIntent != null && slashIntent.command.isNotEmpty() && canUseCommands &&
         exactCommand == null && state.commands.isLoading
     val commandMode = takeoverEnabled && inputEnabled && slashIntent != null && attachments.isEmpty()
-    val messageSendable = !runtimeBlocksSubmission &&
+    // DSH keeps session.send_message available while a turn runs and queues the
+    // message behind it. Runtimes that cannot queue advertise the capability as
+    // unavailable while running, so they still fall through to the busy gate.
+    val canQueueWhileRunning = runtimeStatus == SessionRuntimeStatus.Running &&
+        takeoverEnabled &&
+        (isPreparedSession || canUseSendMessage) &&
+        blockingNotices.isEmpty() &&
+        attachmentsReady &&
+        (attachments.isEmpty() || canUseAttachments)
+    val messageSendable = (!runtimeBlocksSubmission || canQueueWhileRunning) &&
         blockingNotices.isEmpty() &&
         attachmentsReady &&
         (attachments.isEmpty() || canUseAttachments) &&
         (isPreparedSession || canUseSendMessage)
     val canSend = inputEnabled &&
         !state.sending &&
+        !state.interrupting &&
         !preparedSessionCreating &&
         !state.commandExecuting &&
         (draft.isNotBlank() || attachments.isNotEmpty()) &&
@@ -1604,6 +1614,8 @@ fun SessionDetailScreen(
         runtimeStatus == SessionRuntimeStatus.Unknown -> stringResource(R.string.session_runtime_state_unknown)
         runtimeStatus in setOf(SessionRuntimeStatus.Waiting, SessionRuntimeStatus.Pending) ->
             stringResource(R.string.session_pending_placeholder)
+        runtimeStatus == SessionRuntimeStatus.Running && canSend ->
+            stringResource(R.string.session_busy_queue_placeholder)
         runtimeStatus in setOf(SessionRuntimeStatus.Running, SessionRuntimeStatus.Stopping) ->
             stringResource(R.string.session_busy_placeholder)
         runtimeStatus in setOf(SessionRuntimeStatus.WaitingApproval, SessionRuntimeStatus.Blocked) ->
