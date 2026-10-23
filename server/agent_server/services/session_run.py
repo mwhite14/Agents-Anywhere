@@ -399,8 +399,13 @@ class SessionRunService:
             raise SessionRunConflictError("connector is offline")
         await self._ensure_session_runtime_running(session, user_id=user_id)
         runtime_status = await self._read_runtime_status(session)
-        if runtime_status not in {"idle", "error"}:
+        if runtime_status not in {"idle", "error", "running"}:
             raise SessionRunConflictError(f"session is {runtime_status}")
+        # A running DSH turn accepts queued messages; the connector appends them
+        # after the current turn. Other runtimes advertise session.send_message
+        # as unavailable while running, so the capability check below still
+        # rejects them.
+        queued_while_running = runtime_status == "running"
         await self._require_session_capability(
             session,
             SESSION_SEND_MESSAGE,
@@ -433,13 +438,16 @@ class SessionRunService:
             params["attachments"] = attachment_payloads
             params["timelineAttachments"] = [_timeline_attachment_payload(item) for item in attachment_payloads]
 
-        await self._store.start_active_run(
-            session_id=session_id,
-            runtime=session.runtime,
-            runtime_id=_session_runtime_id(session),
-            external_session_id=session.externalSessionId,
-            params=params,
-        )
+        # A queued message is not a new run: leave the active run belonging to
+        # the current turn untouched.
+        if not queued_while_running:
+            await self._store.start_active_run(
+                session_id=session_id,
+                runtime=session.runtime,
+                runtime_id=_session_runtime_id(session),
+                external_session_id=session.externalSessionId,
+                params=params,
+            )
         try:
             result = await self._manager.request(
                 session.connectorId,
@@ -447,13 +455,16 @@ class SessionRunService:
                 params,
             )
         except ConnectorOfflineError as exc:
-            await self._store.clear_active_run(session_id)
+            if not queued_while_running:
+                await self._store.clear_active_run(session_id)
             raise SessionRunConflictError(str(exc)) from exc
         except ConnectorRpcError as exc:
-            await self._store.clear_active_run(session_id)
+            if not queued_while_running:
+                await self._store.clear_active_run(session_id)
             raise SessionRunUpstreamError(exc.message or exc.code) from exc
         if isinstance(result, dict) and result.get("ok") is False:
-            await self._store.clear_active_run(session_id)
+            if not queued_while_running:
+                await self._store.clear_active_run(session_id)
             await self._persist_operation_source_state(session, result)
             code = result.get("code")
             message = result.get("message")
