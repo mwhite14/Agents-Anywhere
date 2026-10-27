@@ -111,6 +111,8 @@ fun HomeScreen(
     onAppearanceModeChange: (String) -> Unit,
     onLanguageModeChange: (String) -> Unit,
     onSidebarViewModeChange: (String) -> Unit,
+    notificationMode: String = "current",
+    onNotificationModeChange: (String) -> Unit = {},
     profileOpen: Boolean,
     onProfileOpenChange: (Boolean) -> Unit,
     onOpenArchivedSessions: () -> Unit,
@@ -315,6 +317,10 @@ fun HomeScreen(
             }
             ProfileSettingsDrawer(
                 open = profileOpen,
+                notificationMode = notificationMode,
+                onNotificationModeChange = { mode ->
+                    onNotificationModeChange(mode)
+                },
                 userId = userId,
                 role = role,
                 serverUrl = serverUrl,

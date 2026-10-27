@@ -40,6 +40,14 @@ import com.agentsanywhere.app.feature.update.AppUpdateViewModel
 import com.agentsanywhere.app.feature.devices.DevicesController
 import com.agentsanywhere.app.feature.devices.DevicePairingMonitor
 import com.agentsanywhere.app.feature.files.FilesController
+import com.agentsanywhere.app.feature.notifications.NotifiableSession
+import com.agentsanywhere.app.feature.notifications.toNotifiableSessions
+import com.agentsanywhere.app.feature.notifications.InAppSessionNotificationEffect
+import com.agentsanywhere.app.feature.notifications.SessionNotificationForegroundService
+import com.agentsanywhere.app.feature.notifications.SessionNotificationListenerEffect
+import com.agentsanywhere.app.feature.notifications.SessionNotificationMode
+import com.agentsanywhere.app.feature.notifications.SessionNotificationSettings
+import com.agentsanywhere.app.feature.notifications.SessionNotifications
 import com.agentsanywhere.app.feature.realtime.DashboardRealtimeController
 import com.agentsanywhere.app.feature.realtime.RealtimeClientIdStore
 import com.agentsanywhere.app.feature.realtime.SessionRealtimeController
@@ -94,12 +102,17 @@ fun AgentsAnywhereApp(
     onSidebarViewModeChange: (String) -> Unit = {},
     oauthCallbackUri: Uri? = null,
     onOAuthCallbackConsumed: () -> Unit = {},
+    notificationSessionId: String? = null,
+    onNotificationSessionConsumed: () -> Unit = {},
     webLoginViewModel: WebLoginViewModel,
     appUpdateViewModel: AppUpdateViewModel,
     onInstallUpdate: (File) -> Unit = {},
 ) {
     val context = LocalContext.current
     val sessionStore = remember(context) { AuthSessionStore(context) }
+    var notificationMode by remember { mutableStateOf(SessionNotificationSettings.mode(context)) }
+    var inAppSnapshotSessions by remember { mutableStateOf<List<NotifiableSession>>(emptyList()) }
+    SessionNotificationListenerEffect(authStore = sessionStore)
     var destinationName by rememberSaveable {
         mutableStateOf(
             if (sessionStore.hasAuthSession()) {
@@ -111,6 +124,23 @@ fun AgentsAnywhereApp(
     }
     var pendingMobileLoginQr by remember { mutableStateOf<MobileLoginQrPayload?>(null) }
     var selectedSessionId by rememberSaveable { mutableStateOf<String?>(null) }
+    InAppSessionNotificationEffect(
+        authStore = sessionStore,
+        snapshotSessions = inAppSnapshotSessions,
+        lastViewedSessionId = selectedSessionId,
+    )
+
+    // A tapped session notification opens that session and clears its mute, so a
+    // later finished turn notifies again.
+    LaunchedEffect(notificationSessionId) {
+        val sessionId = notificationSessionId ?: return@LaunchedEffect
+        SessionNotifications.onSessionOpened(context, sessionId)
+        if (sessionStore.hasAuthSession()) {
+            selectedSessionId = sessionId
+            destinationName = AppDestination.SessionDetail.name
+        }
+        onNotificationSessionConsumed()
+    }
     var initialNewSessionProjectId by rememberSaveable { mutableStateOf<String?>(null) }
     var preparedSessionDraft by rememberSaveable(stateSaver = NewSessionDraftSaver) {
         mutableStateOf<NewSessionDraft?>(null)
@@ -469,6 +499,7 @@ fun AgentsAnywhereApp(
         dashboardRealtimeController.start(
             scope = this,
             onSnapshot = { snapshot ->
+                inAppSnapshotSessions = snapshot.sessions.toNotifiableSessions(snapshot)
                 scope.launch {
                     if (sessionStore.readServerUrl() != realtimeServerUrl ||
                         sessionStore.readAccessToken() != realtimeAccessToken
@@ -583,6 +614,16 @@ fun AgentsAnywhereApp(
         onAppearanceModeChange = onAppearanceModeChange,
         onLanguageModeChange = onLanguageModeChange,
         onSidebarViewModeChange = onSidebarViewModeChange,
+        notificationMode = notificationMode,
+        onNotificationModeChange = { mode ->
+            notificationMode = mode
+            SessionNotificationSettings.setMode(context, mode)
+            if (mode == SessionNotificationMode.ALL_SESSIONS) {
+                SessionNotificationForegroundService.start(context)
+            } else {
+                SessionNotificationForegroundService.stop(context)
+            }
+        },
         onLoadAccount = { authController.me() },
         onLoadAccountAuthConfig = { authController.accountAuthConfig() },
         onUpdateDisplayName = { displayName -> authController.updateDisplayName(displayName) },

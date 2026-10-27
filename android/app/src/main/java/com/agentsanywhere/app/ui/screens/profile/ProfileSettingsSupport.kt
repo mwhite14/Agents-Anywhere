@@ -9,6 +9,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.res.stringResource
 import com.agentsanywhere.app.BuildConfig
 import com.agentsanywhere.app.R
+import com.agentsanywhere.app.feature.notifications.SessionNotificationMode
 import com.agentsanywhere.app.ui.designsystem.AAAppearanceMode
 import com.agentsanywhere.app.ui.designsystem.AALanguageMode
 import com.agentsanywhere.app.ui.screens.home.HomeSidebarViewMode
@@ -36,6 +37,13 @@ internal fun String.labelForLanguage(): String = when (this) {
 internal fun String.labelForSidebarView(): String = when (this) {
     HomeSidebarViewMode.Session -> stringResource(R.string.profile_session_view)
     else -> stringResource(R.string.profile_project_view)
+}
+
+@Composable
+internal fun String.labelForNotificationMode(): String = when (this) {
+    SessionNotificationMode.ALL_SESSIONS -> stringResource(R.string.notifications_mode_all)
+    SessionNotificationMode.OFF -> stringResource(R.string.notifications_mode_off)
+    else -> stringResource(R.string.notifications_mode_current)
 }
 
 @Composable

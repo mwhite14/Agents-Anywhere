@@ -709,4 +709,17 @@
     <string name="announcement_title">Announcement</string>
     <string name="announcement_published_at">Published %1$s</string>
     <string name="announcement_acknowledge">Got it</string>
+    <string name="notifications_listener_channel_name">Session listener</string>
+    <string name="notifications_listener_channel_description">Shown while the app watches your sessions in the background.</string>
+    <string name="notifications_listener_title">Watching your sessions</string>
+    <string name="notifications_listener_body">You will be told when a turn finishes.</string>
+    <string name="notifications_channel_name">Finished turns</string>
+    <string name="notifications_channel_description">When a session finishes a turn or waits for your input.</string>
+    <string name="notifications_mode_title">Session notifications</string>
+    <string name="notifications_mode_current">Current session</string>
+    <string name="notifications_mode_all">All sessions</string>
+    <string name="notifications_mode_off">Off</string>
+    <string name="notifications_mode_current_description">Only the session you are viewing</string>
+    <string name="notifications_mode_all_description">Every session, even after you leave the app</string>
+    <string name="notifications_mode_pick_title">Notify me about</string>
 </resources>

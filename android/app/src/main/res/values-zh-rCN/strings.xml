@@ -707,4 +707,17 @@
     <string name="announcement_title">公告</string>
     <string name="announcement_published_at">发布于 %1$s</string>
     <string name="announcement_acknowledge">我知道了</string>
+    <string name="notifications_listener_channel_name">会话监听</string>
+    <string name="notifications_listener_channel_description">应用在后台关注你的会话时显示。</string>
+    <string name="notifications_listener_title">正在关注会话</string>
+    <string name="notifications_listener_body">回合结束后会通知你。</string>
+    <string name="notifications_channel_name">回合结束</string>
+    <string name="notifications_channel_description">会话完成一个回合或等待你输入时通知。</string>
+    <string name="notifications_mode_title">会话通知</string>
+    <string name="notifications_mode_current">当前会话</string>
+    <string name="notifications_mode_all">全部会话</string>
+    <string name="notifications_mode_off">关闭</string>
+    <string name="notifications_mode_current_description">只通知你正在查看的会话</string>
+    <string name="notifications_mode_all_description">所有会话，离开应用后也会通知</string>
+    <string name="notifications_mode_pick_title">通知范围</string>
 </resources>

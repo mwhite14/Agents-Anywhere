@@ -10,6 +10,7 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <uses-feature
         android:name="android.hardware.camera"
@@ -49,6 +50,10 @@
                     android:scheme="agents-anywhere" />
             </intent-filter>
         </activity>
+        <service
+            android:name=".feature.notifications.SessionNotificationForegroundService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
         <service
             android:name=".feature.terminal.RemoteTerminalForegroundService"
             android:exported="false"
