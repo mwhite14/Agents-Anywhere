@@ -528,6 +528,7 @@
     <string name="session_waiting_approval_placeholder">Waiting for your response below…</string>
     <string name="session_pending_placeholder">Waiting for the runtime to accept the task…</string>
     <string name="session_busy_placeholder">Send an interrupt or wait for the current turn to finish</string>
+    <string name="session_busy_queue_placeholder">Send to queue for the next turn</string>
     <string name="session_error_placeholder">This session has an error; sending will retry</string>
     <string name="session_takeover">Takeover</string>
     <string name="session_attachment_camera">Camera</string>
@@ -682,7 +683,6 @@
     <string name="profile_email_unverified">Not verified</string>
     <string name="home_sessions_title">Sessions</string>
     <string name="home_mark_all_read">Mark all as read</string>
-    <string name="workspace_home">Home directory</string>
     <string name="workspace_resolving_home">Resolving home directory…</string>
     <string name="workspace_resolve_failed">Could not resolve this directory. Try again.</string>
     <string name="workspace_browse">Browse filesystem</string>

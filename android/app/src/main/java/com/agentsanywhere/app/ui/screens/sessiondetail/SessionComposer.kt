@@ -494,17 +494,18 @@ private fun ComposerActions(
         darkMode -> Color(0xFFA1A1AA)
         else -> Color(0xFF3A3935)
     }
-    val primaryActionEnabled = if (showInterrupt) !interrupting else canSend
-    val primaryActionBusy = sending || interrupting
+    val showBothActions = showInterrupt && canSend
+    val primaryActionEnabled = if (showInterrupt && !showBothActions) !interrupting else canSend
+    val primaryActionBusy = sending || (interrupting && !showBothActions)
     val primaryActionSurface = when {
-        showInterrupt -> Color(0xFFEF4444)
+        showInterrupt && !showBothActions -> Color(0xFFEF4444)
         canSend && darkMode -> Color(0xFFFAFAFA)
         canSend -> Color(0xFF2B2B2B)
         darkMode -> Color(0xFF3F3F46)
         else -> Color(0xFFE2E0DC)
     }
     val primaryActionIcon = when {
-        showInterrupt -> Color.White
+        showInterrupt && !showBothActions -> Color.White
         canSend && darkMode -> Color(0xFF09090B)
         canSend -> Color.White
         darkMode -> Color(0xFF71717A)
@@ -567,35 +568,71 @@ private fun ComposerActions(
                 )
             }
         }
-        Box(
-            modifier = Modifier
-                .size(34.dp)
-                .clip(CircleShape)
-                .background(primaryActionSurface)
-                .then(
-                    if (primaryActionEnabled) {
-                        Modifier.noRippleClickable(
-                            onClick = if (showInterrupt) onInterrupt else onSend,
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            if (showBothActions) {
+                Box(
+                    modifier = Modifier
+                        .size(34.dp)
+                        .clip(CircleShape)
+                        .background(Color(0xFFEF4444).copy(alpha = 0.14f))
+                        .then(
+                            if (!interrupting) {
+                                Modifier.noRippleClickable(onClick = onInterrupt)
+                            } else {
+                                Modifier
+                            },
+                        ),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    if (interrupting) {
+                        CircularProgressIndicator(
+                            color = Color(0xFFEF4444),
+                            strokeWidth = 2.dp,
+                            modifier = Modifier.size(17.dp),
                         )
                     } else {
-                        Modifier
-                    },
-                ),
-            contentAlignment = Alignment.Center,
-        ) {
-            when {
-                primaryActionBusy -> CircularProgressIndicator(
-                    color = primaryActionIcon,
-                    strokeWidth = 2.dp,
-                    modifier = Modifier.size(17.dp),
-                )
-                showInterrupt -> Box(
-                    modifier = Modifier
-                        .size(10.dp)
-                        .clip(RoundedCornerShape(2.dp))
-                        .background(primaryActionIcon),
-                )
-                else -> ArrowUpGlyph(primaryActionIcon)
+                        Box(
+                            modifier = Modifier
+                                .size(10.dp)
+                                .clip(RoundedCornerShape(2.dp))
+                                .background(Color(0xFFEF4444)),
+                        )
+                    }
+                }
+            }
+            Box(
+                modifier = Modifier
+                    .size(34.dp)
+                    .clip(CircleShape)
+                    .background(primaryActionSurface)
+                    .then(
+                        if (primaryActionEnabled) {
+                            Modifier.noRippleClickable(
+                                onClick = if (showInterrupt && !showBothActions) onInterrupt else onSend,
+                            )
+                        } else {
+                            Modifier
+                        },
+                    ),
+                contentAlignment = Alignment.Center,
+            ) {
+                when {
+                    primaryActionBusy -> CircularProgressIndicator(
+                        color = primaryActionIcon,
+                        strokeWidth = 2.dp,
+                        modifier = Modifier.size(17.dp),
+                    )
+                    showInterrupt && !showBothActions -> Box(
+                        modifier = Modifier
+                            .size(10.dp)
+                            .clip(RoundedCornerShape(2.dp))
+                            .background(primaryActionIcon),
+                    )
+                    else -> ArrowUpGlyph(primaryActionIcon)
+                }
             }
         }
     }

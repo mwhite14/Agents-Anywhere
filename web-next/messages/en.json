@@ -999,6 +999,8 @@
       "waitingApprovalPlaceholder": "Waiting for your response below...",
       "pendingPlaceholder": "Waiting for the runtime to accept the task...",
       "busyPlaceholder": "Send an interrupt or wait for the current turn to finish",
+      "busyQueuePlaceholder": "Send to queue for the next turn",
+      "queue": "Queue message",
       "errorPlaceholder": "This session has an error; sending will retry",
       "dshConcurrentWriter": "Stop the other process using this DSH session, wait for it to exit, then refresh before retrying.",
       "replyPlaceholder": "Reply, or interrupt with new instructions...",

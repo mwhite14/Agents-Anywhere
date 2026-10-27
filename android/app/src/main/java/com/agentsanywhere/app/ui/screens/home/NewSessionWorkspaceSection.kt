@@ -37,7 +37,6 @@ import androidx.compose.ui.unit.sp
 import com.agentsanywhere.app.R
 import com.agentsanywhere.app.feature.sessions.recentWorkspacePaths
 import com.agentsanywhere.app.feature.sessions.workspacePathKey
-import com.agentsanywhere.app.feature.sessions.workspaceProject
 import com.agentsanywhere.app.feature.sessions.workspaceProjectName
 import com.agentsanywhere.app.model.AgentProject
 import com.agentsanywhere.app.model.AgentSession
@@ -67,7 +66,6 @@ internal fun WorkspaceSection(
 ) {
     val colors = LocalAAColors.current
     val available = projects.filter { it.connectorId == connectorId }
-    val homeProject = workspaceProject(available, connectorId.orEmpty(), homePath.orEmpty(), deviceOs)
     val recent = remember(projectMode, connectorId, deviceOs, homePath, sessions, projects) {
         if (projectMode) emptyList() else recentWorkspacePaths(connectorId, deviceOs, homePath, sessions, projects)
     }
@@ -92,11 +90,6 @@ internal fun WorkspaceSection(
                     raised = true,
                     onClick = if (projectMode) onCreate else onBrowse,
                 )
-            }
-            if (!projectMode || homeProject == null) item(key = "home") {
-                WorkspaceOptionRow(stringResource(R.string.workspace_home), homePath.orEmpty(), homePath != null && workspacePathKey(path, deviceOs) == workspacePathKey(homePath, deviceOs), enabled = !homePath.isNullOrBlank()) {
-                    onSelect(WorkspaceChoice(homePath.orEmpty(), homeProject?.id))
-                }
             }
             if (projectMode) {
                 items(available, key = { "project:${it.id}" }) { project ->

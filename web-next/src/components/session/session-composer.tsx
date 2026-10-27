@@ -186,7 +186,6 @@ export function SessionComposer({
     !sourceUnavailable &&
     !isDisconnected &&
     !isWaiting &&
-    !isRunning &&
     !isStopping &&
     !isWaitingApproval &&
     !isBlocked
@@ -377,8 +376,10 @@ export function SessionComposer({
         ? tSession("waitingApprovalPlaceholder")
         : isWaiting
           ? tSession("pendingPlaceholder")
-          : isStopping || isRunning
+          : isStopping
             ? tSession("busyPlaceholder")
+            : isRunning
+              ? tSession(canUseSendMessage ? "busyQueuePlaceholder" : "busyPlaceholder")
             : isWaitingApproval || isBlocked
               ? tSession("waitingApprovalPlaceholder")
               : isError
@@ -544,8 +545,9 @@ export function SessionComposer({
     }
   }
 
+  const canSubmitQueuedMessage = isRunning && canSubmitMessage
   const primaryAction = () => {
-    if (showInterruptAction) {
+    if (showInterruptAction && !canSubmitQueuedMessage) {
       onInterrupt()
       return
     }
@@ -909,17 +911,30 @@ export function SessionComposer({
               {tSession("takeover")}
             </div>
             <span className="mx-1 h-5 w-px shrink-0 bg-border" />
+            {showInterruptAction && canSubmitQueuedMessage ? (
+              <Button
+                type="button"
+                size="icon"
+                variant="outline"
+                aria-label={tSession("interrupt")}
+                className="size-8 rounded-full border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                disabled={interrupting}
+                onClick={onInterrupt}
+              >
+                {interrupting ? <Loader2 className="size-4 animate-spin" /> : <Square className="size-4" />}
+              </Button>
+            ) : null}
             <Button
               type="button"
               size="icon"
-              aria-label={showInterruptAction ? tSession("interrupt") : tSession("send")}
-              className={cn("size-8 rounded-full", showInterruptAction && "bg-destructive text-destructive-foreground hover:bg-destructive/90")}
-              disabled={showInterruptAction ? interrupting : !(canSubmitCommand || canSubmitMessage)}
+              aria-label={showInterruptAction && !canSubmitQueuedMessage ? tSession("interrupt") : canSubmitQueuedMessage ? tSession("queue") : tSession("send")}
+              className={cn("size-8 rounded-full", showInterruptAction && !canSubmitQueuedMessage && "bg-destructive text-destructive-foreground hover:bg-destructive/90")}
+              disabled={showInterruptAction && !canSubmitQueuedMessage ? interrupting : !(canSubmitCommand || canSubmitMessage)}
               onClick={primaryAction}
             >
-              {sending || interrupting || commandPending ? (
+              {sending || commandPending || (interrupting && !canSubmitQueuedMessage) ? (
                 <Loader2 className="size-4 animate-spin" />
-              ) : showInterruptAction ? (
+              ) : showInterruptAction && !canSubmitQueuedMessage ? (
                 <Square className="size-4" />
               ) : (
                 <ArrowUp className="size-4" />
