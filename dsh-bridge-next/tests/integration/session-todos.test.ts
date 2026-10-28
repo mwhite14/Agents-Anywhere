@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { setTimeout as delay } from 'node:timers/promises'
 import { SessionId } from '@deepseek-ai/dsh-session'
-import Todo from '@deepseek-ai/dsh-tool-todo'
+import * as Todo from '@deepseek-ai/dsh-tool-todo'
 import { nativeRuntime } from '../fixtures/native-runtime.js'
 import { initialSelections, mountAgents, TextAdapter } from '../fixtures/agent-runtime.js'
 
