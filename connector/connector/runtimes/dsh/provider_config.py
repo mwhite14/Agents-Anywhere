@@ -142,6 +142,7 @@ def dsh_capabilities(reported: dict[str, Any] | None = None) -> dict[str, bool]:
         "sessionSnapshot": True,
         "sessionState": True,
         "sessionNotices": False,
+        "sessionArchive": True,
         "createAndStartSession": "session.send_message" in enabled,
         "startTurn": "session.send_message" in enabled,
         "steerTurn": False,

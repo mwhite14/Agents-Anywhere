@@ -115,7 +115,11 @@ from agent_server.services.event_recovery import EventRecoveryService
 from agent_server.services.session_meta_projection import (
     project_session_meta_for_dashboard,
 )
-from agent_server.services.session_run import SessionRunError, SessionRunService
+from agent_server.services.session_run import (
+    SessionRunError,
+    SessionRunService,
+    mirror_session_archive,
+)
 from agent_server.services.session_runtime_state_cache import SessionRuntimeStateCache
 from agent_server.services.timeline_write_buffer import TimelineWriteBuffer
 from agent_server.services.usage_events import UsageRecorder
@@ -509,6 +513,7 @@ async def patch_session_meta(
     timeline_write_buffer: TimelineWriteBuffer = Depends(
         get_timeline_write_buffer
     ),
+    run_service: SessionRunService = Depends(get_session_run_service),
 ) -> SessionResponse:
     try:
         session = await db.get_session(session_id, user_id=user_id)
@@ -537,6 +542,15 @@ async def patch_session_meta(
                 payload.archived,
                 user_id=user_id,
             )
+    if payload.archived is not None:
+        # The platform flag is already stored; the runtime mirror is best effort.
+        await mirror_session_archive(
+            run_service, [session], payload.archived, user_id=user_id
+        )
+        try:
+            session = await db.get_session(session_id, user_id=user_id)
+        except KeyError:
+            pass
 
     await publish_dashboard_changed(
         db,
@@ -565,13 +579,23 @@ async def set_sessions_archived(
     db: Store,
     manager: ConnectorRpcManager,
     broker: TimelineBroker,
+    run_service: SessionRunService | None = None,
 ) -> BulkArchiveResponse:
-    """Persist archive metadata and publish dashboard invalidations."""
+    """Persist archive metadata, mirror it into owning runtimes, and publish invalidations."""
     sessions, not_found = await db.bulk_set_session_archived(
         session_ids,
         archived,
         user_id=user_id,
     )
+    if run_service is not None:
+        await mirror_session_archive(run_service, sessions, archived, user_id=user_id)
+        refreshed: list[Any] = []
+        for session in sessions:
+            try:
+                refreshed.append(await db.get_session(session.id, user_id=user_id))
+            except KeyError:
+                refreshed.append(session)
+        sessions = refreshed
     reason = "sessions.archived" if archived else "sessions.unarchived"
     for session in sessions:
         await publish_dashboard_changed(
@@ -601,6 +625,7 @@ async def archive_sessions(
     db: Store = Depends(get_store),
     manager: ConnectorRpcManager = Depends(get_rpc),
     broker: TimelineBroker = Depends(get_timeline_broker),
+    run_service: SessionRunService = Depends(get_session_run_service),
 ) -> BulkArchiveResponse:
     return await set_sessions_archived(
         validate_session_id_array(payload),
@@ -609,6 +634,7 @@ async def archive_sessions(
         db,
         manager,
         broker,
+        run_service,
     )
 
 
@@ -619,6 +645,7 @@ async def unarchive_sessions(
     db: Store = Depends(get_store),
     manager: ConnectorRpcManager = Depends(get_rpc),
     broker: TimelineBroker = Depends(get_timeline_broker),
+    run_service: SessionRunService = Depends(get_session_run_service),
 ) -> BulkArchiveResponse:
     return await set_sessions_archived(
         validate_session_id_array(payload),
@@ -627,6 +654,7 @@ async def unarchive_sessions(
         db,
         manager,
         broker,
+        run_service,
     )
 
 

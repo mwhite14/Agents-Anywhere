@@ -20,6 +20,7 @@ from agent_server.core.utc import utc_now
 from agent_server.deps import (
     current_user_id,
     get_rpc,
+    get_session_run_service,
     get_session_runtime_state_cache,
     get_store,
     get_terminal_broker,
@@ -37,6 +38,7 @@ from agent_server.services.connector_presence import (
     with_effective_session_connector_statuses,
 )
 from agent_server.services.dashboard_events import publish_dashboard_changed
+from agent_server.services.session_run import SessionRunService, mirror_session_archive
 from agent_server.services.session_runtime_state_cache import SessionRuntimeStateCache
 from agent_server.services.timeline_write_buffer import TimelineWriteBuffer
 
@@ -250,6 +252,7 @@ async def archive_all_device_sessions(
     store: Store = Depends(get_store),
     manager: ConnectorRpcManager = Depends(get_rpc),
     user_id: str = Depends(current_user_id),
+    run_service: SessionRunService = Depends(get_session_run_service),
 ) -> ArchiveAllResponse:
     await require_owned_connector(connector_id, user_id, store)
     try:
@@ -261,6 +264,9 @@ async def archive_all_device_sessions(
         )
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
+    await mirror_session_archive(
+        run_service, sessions, payload.archived, user_id=user_id
+    )
     return ArchiveAllResponse(
         sessions=await with_effective_session_connector_statuses(manager, sessions),
         affected=len(sessions),
