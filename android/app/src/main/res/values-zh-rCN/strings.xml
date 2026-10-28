@@ -392,6 +392,12 @@
     <string name="session_selection_update_failed">无法更新运行时选择。</string>
     <string name="session_commands_loading">正在加载指令…</string>
     <string name="session_commands_empty">没有匹配的指令。</string>
+    <string name="session_todos_title">待办</string>
+    <string name="session_todos_completed">已完成 %1$d 项</string>
+    <string name="session_todos_in_progress">进行中 %1$d 项</string>
+    <string name="session_todos_pending">待处理 %1$d 项</string>
+    <string name="session_todos_expand">展开待办</string>
+    <string name="session_todos_collapse">收起待办</string>
     <string name="session_commands_load_failed">无法加载指令。</string>
     <string name="session_command_failed">无法执行指令。</string>
     <string name="session_command_busy">Agent 忙碌中，暂时不能执行</string>

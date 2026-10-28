@@ -393,6 +393,12 @@
     <string name="session_selection_update_failed">Could not update the runtime selection.</string>
     <string name="session_commands_loading">Loading commands…</string>
     <string name="session_commands_empty">No matching commands.</string>
+    <string name="session_todos_title">To-dos</string>
+    <string name="session_todos_completed">%1$d completed</string>
+    <string name="session_todos_in_progress">%1$d in progress</string>
+    <string name="session_todos_pending">%1$d pending</string>
+    <string name="session_todos_expand">Show to-dos</string>
+    <string name="session_todos_collapse">Hide to-dos</string>
     <string name="session_commands_load_failed">Could not load commands.</string>
     <string name="session_command_failed">Could not run the command.</string>
     <string name="session_command_busy">The agent is busy. Try again when it is idle.</string>

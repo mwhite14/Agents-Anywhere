@@ -3,6 +3,7 @@ import type { Agent } from '@deepseek-ai/dsh-agent'
 import type {} from '@deepseek-ai/dsh-api-session-controller'
 import type {} from '@deepseek-ai/dsh-permission-presets'
 import type {} from '@deepseek-ai/dsh-commands'
+import type {} from '@deepseek-ai/dsh-tool-todo'
 import { ReasoningEffortId } from '@deepseek-ai/dsh-llm'
 import { SessionLogOffset, type SessionId } from '@deepseek-ai/dsh-session'
 import type { SessionLogSnapshot } from '@deepseek-ai/dsh-session-query'
@@ -88,12 +89,14 @@ export class RuntimeConfiguration {
     const live = this.ctx.sessions.get(id)
     const log = snapshot ?? (live ? undefined : await this.ctx.sessionQuery.readSession(id))
     const projections = this.ctx.get('sessionProjections')
-    const projected = projections && (live ? projections.snapshot(live, ['modelSelection', 'permissions', 'agentPreset'])
+    const projected = projections && (live ? projections.snapshot(live, ['modelSelection', 'permissions', 'agentPreset', 'todos'])
       : projections.restore({}, log!.events, SessionLogOffset(0), log!.session, log!.inheritedEventCount).snapshot)
     const events = live?.snapshotEvents() ?? log!.events
     const header = live?.header ?? log!.session
     const rawModel = projected?.values.modelSelection?.next
     const lastUsed = projected?.values.modelSelection?.lastUsed
+    // `todos` is a whole-value projection: each `todo/write` replaces the list.
+    const todos = todosFromProjection(projected?.values.todos)
     // Old logs without the projection still expose their actual last request, never a global default.
     const request = record(record(events.findLast(event => event.type === 'request/header')?.data).header).config
     const model = rawModel ?? modelFromRecord(request)
@@ -109,8 +112,25 @@ export class RuntimeConfiguration {
       ...(permission ? { permissionPreset: { id: permission, name: this.ctx.get('permissionPresets')?.optionOf(permission).name ?? permission, selectable: permission !== 'custom' } } : {}),
       ...(lastUsed ? { lastUsedModel: lastUsed } : {}),
       ...(permission === 'custom' ? { permission: { id: 'custom', name: 'Custom', selectable: false } } : {}),
+      ...(todos ? { todos } : {}),
     } }
   }
+}
+
+const TODO_STATUSES = new Set(['completed', 'in_progress', 'pending'])
+
+/**
+ * The DSH todo projection is `null` before the first write and a whole-list
+ * snapshot after it. Drop malformed rows instead of letting one break state.
+ */
+function todosFromProjection(value: unknown): Array<{ content: string, status: string }> | undefined {
+  if (!Array.isArray(value)) return undefined
+  const todos = value.flatMap(entry => {
+    const todo = record(entry)
+    if (typeof todo.content !== 'string' || !todo.content || !TODO_STATUSES.has(String(todo.status))) return []
+    return [{ content: todo.content, status: String(todo.status) }]
+  })
+  return todos.length > 0 ? todos : undefined
 }
 
 function modelFromRecord(value: unknown): ModelSelection | undefined {
