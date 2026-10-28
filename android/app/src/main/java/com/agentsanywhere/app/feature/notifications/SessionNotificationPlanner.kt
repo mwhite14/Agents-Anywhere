@@ -22,8 +22,9 @@ object SessionNotificationMode {
  * The dashboard snapshot carries every session in the workspace. A session only
  * notifies when it stops running while it was running before, which is the moment
  * a turn finished and the reply is ready to read. A session that starts waiting
- * for input also notifies, because the turn cannot continue until someone
- * answers, even if it never passed through "running" in this snapshot.
+ * for input or for approval also notifies, because the turn cannot continue
+ * until someone answers, even if it never passed through "running" in this
+ * snapshot.
  *
  * Modes: "off" posts nothing; "current" posts only for the session the user is
  * viewing, plus waiting-for-input; "all" posts for every session.
@@ -63,7 +64,8 @@ internal class SessionNotificationPlanner(
     }
 
     private fun eventFor(session: NotifiableSession): SessionNotificationEvent? {
-        val waiting = session.status == WAITING
+        val approvalNeeded = session.status == WAITING_APPROVAL
+        val waiting = approvalNeeded || session.status == WAITING
         if (!runningSessionIds.contains(session.id) && !waiting) return null
         val visible = when (mode) {
             SessionNotificationMode.OFF -> false
@@ -74,7 +76,11 @@ internal class SessionNotificationPlanner(
         return SessionNotificationEvent(
             sessionId = session.id,
             title = session.title?.takeIf { it.isNotBlank() } ?: session.workspaceLabel,
-            body = if (waiting) WAITING_BODY else FINISHED_BODY,
+            body = when {
+                approvalNeeded -> APPROVAL_BODY
+                waiting -> WAITING_BODY
+                else -> FINISHED_BODY
+            },
             waitingForInput = waiting,
             runtimeName = session.runtimeName,
         )
@@ -83,8 +89,10 @@ internal class SessionNotificationPlanner(
     companion object {
         private const val RUNNING = "running"
         private const val WAITING = "waiting"
+        private const val WAITING_APPROVAL = "waiting_approval"
         private const val FINISHED_BODY = "finished this turn"
         private const val WAITING_BODY = "is waiting for your input"
+        private const val APPROVAL_BODY = "needs your approval to continue"
     }
 }
 
