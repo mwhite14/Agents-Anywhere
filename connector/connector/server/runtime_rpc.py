@@ -36,6 +36,7 @@ from connector.server.runtime_session_rpc import (
 from connector.server.runtime_turn_rpc import (
     dispatch_interaction_respond,
     dispatch_runtime_commands,
+    dispatch_session_archive,
     dispatch_session_command_execute,
     dispatch_session_commands,
     dispatch_session_create,
@@ -69,6 +70,7 @@ class RuntimeRpcHandler:
         "session.capabilities",
         "session.notices",
         "session.selections.update",
+        "session.archive",
         "session.commands",
         "session.command.execute",
         "interaction.respond",
@@ -230,6 +232,12 @@ class RuntimeRpcHandler:
             return self._runtime_result(
                 runtime,
                 await dispatch_session_selections_update(runtime, params),
+            )
+        if method == "session.archive":
+            runtime = self._resolve_agent_runtime(params)
+            return self._runtime_result(
+                runtime,
+                await dispatch_session_archive(runtime, params),
             )
         if method == "session.commands":
             runtime = self._resolve_agent_runtime(params)

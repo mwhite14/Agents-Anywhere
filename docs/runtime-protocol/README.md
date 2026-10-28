@@ -128,6 +128,15 @@ turn and is cleared when that turn starts. A Runtime that applies a change to
 the live session at once (Codex does when it holds the thread) publishes it
 without pending scopes.
 
+`metadata.todos` carries a DSH agent's current to-do list, in write order, as
+`[{ "content": string, "status": "completed" | "in_progress" | "pending" }]`.
+Every `todo/write` replaces the whole list, so clients render the value from the
+newest state read and never merge it with a previous one. The key is absent
+before the first write, after the list is cleared, and at the start of a new
+turn (DSH clears it there). Other Runtimes omit the key. Because this value can
+change without a status transition, a Server publishes the state whenever
+`metadata.todos` differs.
+
 For model catalogs, a `selectionId` must identify one concrete executable choice. If a model exposes reasoning or effort variants, the model item itself must not have a `selectionId`; each reasoning item carries the concrete `selectionId`. If a model has no reasoning variants, the model item carries the concrete `selectionId`.
 
 ## New session semantics

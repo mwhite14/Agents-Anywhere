@@ -376,8 +376,9 @@ export class SyncFeed {
             outcome: change.event.data.reason.kind === 'error' ? 'failed'
               : ['aborted', 'interrupted'].includes(change.event.data.reason.kind) ? 'interrupted' : 'completed',
           }])
+          // `todo/write` republishes state so clients get the current list.
           if (['turn/start', 'turn/end', 'approval/asked', 'approval/decided', 'model/selection', 'request/header',
-            'permission/preset', 'sandbox/mode', 'approval/policy', 'agent-preset/selected'].includes(change.event.type)) statuses.add(id)
+            'permission/preset', 'sandbox/mode', 'approval/policy', 'agent-preset/selected', 'todo/write'].includes(change.event.type)) statuses.add(id)
           // An evicted projection resumes from its committed checkpoint; the replayed log already holds this event.
           const projection = this.projections.get(id)
           if (!projection) { await this.baseline(id, true); return }

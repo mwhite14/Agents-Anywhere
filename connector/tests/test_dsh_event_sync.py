@@ -375,3 +375,32 @@ def test_snapshot_pages_and_aborts_from_another_capture_are_ignored():
         ]
 
     asyncio.run(exercise())
+
+
+def test_archive_change_writes_dsh_and_publishes_the_new_source_state(tmp_path):
+    async def exercise():
+        published = []
+        async def publish(*args):
+            published.append(args)
+        runtime = DshRuntime(
+            SimpleNamespace(values={"dshHome": str(tmp_path)}),
+            SimpleNamespace(publish_runtime_notifications=publish),
+        )
+        runtime._request = AsyncMock(return_value={
+            "sessionId": "sess_dsh_1", "externalSessionId": "native",
+            "sourceState": {"availability": "archived", "reason": "archived_in_dsh",
+                            "observedAt": "2026-10-28T00:00:00Z", "observationOrigin": "operation"},
+        })
+        result = await runtime.set_session_archived("sess_dsh_1", "native", True)
+        runtime._request.assert_awaited_once_with(
+            "setSessionArchived", {"sessionId": "sess_dsh_1", "externalSessionId": "native", "archived": True}
+        )
+        assert result.ok is True
+        runtime_name, notices = published[0]
+        assert runtime_name == "dsh"
+        assert notices == [{"method": "session.source.updated", "params": {
+            "sessionId": "sess_dsh_1", "externalSessionId": "native",
+            "availability": "archived", "reason": "archived_in_dsh",
+            "observedAt": "2026-10-28T00:00:00Z", "observationOrigin": "operation",
+        }}]
+    asyncio.run(exercise())

@@ -51,8 +51,7 @@ private fun RemoteRuntimeNotice.toRuntimeNotice(): RuntimeNotice {
     )
 }
 
-internal fun RemoteSessionRuntimeState?.toSessionRuntimeState(serverTime: String?): SessionRuntimeState {
-    if (this == null) {
+internal fun RemoteSessionRuntimeState?.toSessionRuntimeState(serverTime: String?): SessionRuntimeState {    if (this == null) {
         return SessionRuntimeState(
             serverTime = serverTime,
             isLoaded = true,
@@ -78,6 +77,7 @@ internal fun RemoteSessionRuntimeState?.toSessionRuntimeState(serverTime: String
         statusReason = statusReason,
         error = error,
         metadata = metadata,
+        todos = metadata.toRuntimeTodos(),
         updatedSeq = updatedSeq,
         createdAt = createdAt,
         updatedAt = updatedAt,
@@ -126,3 +126,23 @@ private fun RemoteRuntimeCapability.toEffectiveCapability(): EffectiveCapability
         runtimeType = runtimeType,
     )
 }
+
+/**
+ * DSH publishes its whole current to-do list as `metadata.todos`; every write
+ * replaces the list. Unknown statuses are skipped rather than guessed.
+ */
+internal fun Map<String, Any?>.toRuntimeTodos(): List<RuntimeTodo> {
+    val raw = this["todos"] as? List<*> ?: return emptyList()
+    return raw.mapNotNull { entry ->
+        val todo = entry as? Map<*, *> ?: return@mapNotNull null
+        val content = (todo["content"] as? String)?.trim()?.takeIf(String::isNotEmpty) ?: return@mapNotNull null
+        val status = when (todo["status"] as? String) {
+            "completed" -> RuntimeTodoStatus.Completed
+            "in_progress" -> RuntimeTodoStatus.InProgress
+            "pending" -> RuntimeTodoStatus.Pending
+            else -> return@mapNotNull null
+        }
+        RuntimeTodo(content = content, status = status)
+    }
+}
+

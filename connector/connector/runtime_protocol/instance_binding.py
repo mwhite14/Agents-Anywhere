@@ -616,6 +616,18 @@ class RuntimeInstance(AgentRuntime):
             session_notice_for_instance(notice, self.instance) for notice in notices
         )
 
+    async def set_session_archived(
+        self,
+        session_id: str,
+        external_session_id: str | None,
+        archived: bool,
+    ) -> RuntimeOperationResult:
+        return await self.native_runtime.set_session_archived(
+            session_id,
+            external_session_id,
+            archived,
+        )
+
     async def get_session_capabilities(
         self,
         session_id: str,
