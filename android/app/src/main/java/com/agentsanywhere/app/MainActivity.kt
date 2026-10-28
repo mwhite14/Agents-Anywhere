@@ -18,6 +18,7 @@ import coil3.SingletonImageLoader
 import coil3.disk.DiskCache
 import coil3.memory.MemoryCache
 import com.agentsanywhere.app.app.AgentsAnywhereApp
+import com.agentsanywhere.app.feature.notifications.SessionNotificationCenter
 import com.agentsanywhere.app.feature.auth.WebLoginViewModel
 import com.agentsanywhere.app.feature.update.AppUpdateInstaller
 import com.agentsanywhere.app.feature.update.AppUpdateViewModel
@@ -34,6 +35,7 @@ import okio.Path.Companion.toOkioPath
 
 class MainActivity : ComponentActivity() {
     private val oauthCallbackUri = mutableStateOf<Uri?>(null)
+    private val notificationSessionId = mutableStateOf<String?>(null)
     private val webLoginViewModel by viewModels<WebLoginViewModel>()
     private val appUpdateViewModel by viewModels<AppUpdateViewModel>()
     private var appearanceMode by mutableStateOf(AAAppearanceMode.System)
@@ -72,6 +74,7 @@ class MainActivity : ComponentActivity() {
             preferences.getString(KEY_SIDEBAR_VIEW_MODE, HomeSidebarViewMode.Project),
         )
         oauthCallbackUri.value = intent?.data
+        notificationSessionId.value = openSessionIdFrom(intent)
         setContent {
             AgentsAnywhereTheme(appearanceMode = appearanceMode) {
                 AgentsAnywhereApp(
@@ -95,6 +98,8 @@ class MainActivity : ComponentActivity() {
                     },
                     oauthCallbackUri = oauthCallbackUri.value,
                     onOAuthCallbackConsumed = { oauthCallbackUri.value = null },
+                    notificationSessionId = notificationSessionId.value,
+                    onNotificationSessionConsumed = { notificationSessionId.value = null },
                     webLoginViewModel = webLoginViewModel,
                     appUpdateViewModel = appUpdateViewModel,
                     onInstallUpdate = ::requestUpdateInstall,
@@ -107,6 +112,7 @@ class MainActivity : ComponentActivity() {
         super.onNewIntent(intent)
         setIntent(intent)
         oauthCallbackUri.value = intent.data
+        notificationSessionId.value = openSessionIdFrom(intent)
     }
 
     override fun onResume() {
@@ -171,3 +177,9 @@ class MainActivity : ComponentActivity() {
         private const val KEY_SIDEBAR_VIEW_MODE = "sidebar_view_mode"
     }
 }
+
+private fun openSessionIdFrom(intent: Intent?): String? {
+    if (intent?.action != SessionNotificationCenter.ACTION_OPEN_SESSION) return null
+    return intent.getStringExtra(SessionNotificationCenter.EXTRA_SESSION_ID)?.takeIf { it.isNotBlank() }
+}
+

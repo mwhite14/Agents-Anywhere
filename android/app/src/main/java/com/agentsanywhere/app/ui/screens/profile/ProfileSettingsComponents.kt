@@ -30,6 +30,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.agentsanywhere.app.R
+import com.agentsanywhere.app.feature.notifications.SessionNotificationMode
 import com.agentsanywhere.app.ui.designsystem.AAAppearanceMode
 import com.agentsanywhere.app.ui.designsystem.AADropdownMenu
 import com.agentsanywhere.app.ui.designsystem.AADropdownMenuItem
@@ -38,6 +39,9 @@ import com.agentsanywhere.app.ui.designsystem.BackIconButton
 import com.agentsanywhere.app.ui.designsystem.LocalAAColors
 import com.agentsanywhere.app.ui.designsystem.noRippleClickable
 import com.agentsanywhere.app.ui.screens.home.HomeSidebarViewMode
+import com.composables.icons.lucide.Bell
+import com.composables.icons.lucide.BellOff
+import com.composables.icons.lucide.BellRing
 import com.composables.icons.lucide.ChevronRight
 import com.composables.icons.lucide.Circle
 import com.composables.icons.lucide.Folder
@@ -227,6 +231,35 @@ internal fun SidebarViewPopup(
             icon = Lucide.ListIcon,
             selected = selectedMode == HomeSidebarViewMode.Session,
             onClick = { onSelect(HomeSidebarViewMode.Session); onDismiss() },
+        )
+    }
+}
+
+@Composable
+internal fun NotificationModePopup(
+    open: Boolean,
+    selectedMode: String,
+    onSelect: (String) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    ProfileDropdown(open, onDismiss) {
+        AADropdownMenuItem(
+            text = stringResource(R.string.notifications_mode_off),
+            icon = Lucide.BellOff,
+            selected = selectedMode == SessionNotificationMode.OFF,
+            onClick = { onSelect(SessionNotificationMode.OFF); onDismiss() },
+        )
+        AADropdownMenuItem(
+            text = stringResource(R.string.notifications_mode_current),
+            icon = Lucide.Bell,
+            selected = selectedMode == SessionNotificationMode.CURRENT_SESSION,
+            onClick = { onSelect(SessionNotificationMode.CURRENT_SESSION); onDismiss() },
+        )
+        AADropdownMenuItem(
+            text = stringResource(R.string.notifications_mode_all),
+            icon = Lucide.BellRing,
+            selected = selectedMode == SessionNotificationMode.ALL_SESSIONS,
+            onClick = { onSelect(SessionNotificationMode.ALL_SESSIONS); onDismiss() },
         )
     }
 }

@@ -29,6 +29,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.agentsanywhere.app.R
+import com.agentsanywhere.app.feature.notifications.SessionNotificationMode
 import com.agentsanywhere.app.api.AuthMeResponse
 import com.agentsanywhere.app.config.AppConfig
 import com.agentsanywhere.app.feature.update.AppUpdateViewModel
@@ -37,6 +38,7 @@ import com.composables.icons.lucide.Archive
 import com.composables.icons.lucide.ChevronsUpDown
 import com.composables.icons.lucide.Download
 import com.composables.icons.lucide.Globe
+import com.composables.icons.lucide.Bell
 import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.List as ListIcon
 import com.composables.icons.lucide.Moon
@@ -57,6 +59,8 @@ private fun ProfileDetailPage.titleLabel(): String = when (this) {
 @Composable
 fun ProfileSettingsDrawer(
     open: Boolean,
+    notificationMode: String = SessionNotificationMode.CURRENT_SESSION,
+    onNotificationModeChange: (String) -> Unit = {},
     userId: String,
     role: String,
     serverUrl: String,
@@ -100,6 +104,7 @@ fun ProfileSettingsDrawer(
     var nicknameOpen by remember { mutableStateOf(false) }
     var emailOpen by remember { mutableStateOf(false) }
     var sidebarViewMenuOpen by remember { mutableStateOf(false) }
+    var notificationMenuOpen by remember { mutableStateOf(false) }
     var passwordOpen by remember { mutableStateOf(false) }
     var signOutOpen by remember { mutableStateOf(false) }
     val picker = rememberLauncherForActivityResult(
@@ -134,6 +139,7 @@ fun ProfileSettingsDrawer(
             detailPage = ProfileDetailPage.None
             appearanceMenuOpen = false
             sidebarViewMenuOpen = false
+            notificationMenuOpen = false
             return@LaunchedEffect
         }
         appUpdateViewModel.checkForUpdate(showPrompt = false)
@@ -257,6 +263,27 @@ fun ProfileSettingsDrawer(
                                     sidebarViewMenuOpen = false
                                 },
                                 onDismiss = { sidebarViewMenuOpen = false },
+                            )
+                        }
+                    }
+                    item("notifications") {
+                        ProfileCard {
+                            ProfileRow(
+                                icon = Lucide.Bell,
+                                title = stringResource(R.string.notifications_mode_title),
+                                trailing = notificationMode.labelForNotificationMode(),
+                                trailingIcon = Lucide.ChevronsUpDown,
+                                showChevron = false,
+                                onClick = { notificationMenuOpen = true },
+                            )
+                            NotificationModePopup(
+                                open = notificationMenuOpen,
+                                selectedMode = notificationMode,
+                                onSelect = {
+                                    onNotificationModeChange(it)
+                                    notificationMenuOpen = false
+                                },
+                                onDismiss = { notificationMenuOpen = false },
                             )
                         }
                     }
