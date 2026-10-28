@@ -59,6 +59,7 @@
 - 插件所选的 PyPI 镜像缺少的包会自动从官方 PyPI 补齐，选清华、中科大、北外镜像时不再必然安装失败，与 Desktop 的处理方式一致。（[#451](https://github.com/anywhere-labs/Agents-Anywhere/pull/451)）
 - 插件「设置 → 维护」新增「重装依赖环境」：依赖下载中断或环境损坏时一键删除并重新安装，进行中的安装会被中断，账号、设备连接和设置都保留。（[#452](https://github.com/anywhere-labs/Agents-Anywhere/pull/452)）
 - DSH 会话状态带上 Agent 当前的待办列表，客户端不用解析历史条目就能显示进度。（[54872d2d](https://github.com/mwhite14/Agents-Anywhere/commit/54872d2d)）
+- 在 Agents Anywhere 里归档或恢复 DSH 会话时，DSH 自身的会话列表同步隐藏或恢复该会话；归档正在运行的会话会先停止当前回合。（本次提交）
 
 ### Desktop
 
