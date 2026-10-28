@@ -548,4 +548,7 @@ def runtime_state_fingerprint(value: SessionRuntimeState) -> dict[str, Any]:
         "selections": value.selections,
         "statusReason": value.statusReason,
         "error": value.error,
+        # `todos` changes without any status transition, so metadata alone cannot
+        # decide whether a runtime state update is publishable.
+        "todos": value.metadata.get("todos"),
     }

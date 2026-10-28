@@ -1744,6 +1744,11 @@ fun SessionDetailScreen(
                                         onSelect = ::chooseCommand,
                                     )
                                 }
+                                SessionTodoCard(
+                                    todos = state.runtime.todos,
+                                    darkMode = darkMode,
+                                    modifier = Modifier.padding(bottom = 6.dp),
+                                )
                                 MessageComposer(
                                     darkMode = darkMode,
                                     draft = if (takeoverEnabled) draft else "",

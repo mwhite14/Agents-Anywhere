@@ -25,6 +25,7 @@ data class SessionRuntimeState(
     val statusReason: String? = null,
     val error: Map<String, Any?>? = null,
     val metadata: Map<String, Any?> = emptyMap(),
+    val todos: List<RuntimeTodo> = emptyList(),
     val updatedSeq: Int = 0,
     val createdAt: String? = null,
     val updatedAt: String? = null,
@@ -36,6 +37,18 @@ data class SessionRuntimeState(
     val runtimeType: String? = runtime,
     val runtimeName: String? = runtimeType,
 )
+
+/** One item of the agent's current whole-list to-do snapshot. */
+data class RuntimeTodo(
+    val content: String,
+    val status: RuntimeTodoStatus,
+)
+
+enum class RuntimeTodoStatus {
+    Completed,
+    InProgress,
+    Pending,
+}
 
 enum class SessionRuntimeStatus {
     Idle,
