@@ -326,6 +326,33 @@ class DshRuntime(AgentRuntime):
             }])
         return state
 
+    async def set_session_archived(
+        self,
+        session_id: str,
+        external_session_id: str | None,
+        archived: bool,
+    ) -> RuntimeOperationResult:
+        payload = _object(await self._request(
+            "setSessionArchived",
+            {**_session_params(session_id, external_session_id), "archived": archived},
+        ))
+        source = payload.get("sourceState")
+        if not isinstance(source, dict):
+            raise RuntimeUpstreamError("DSH archive change returned no source state")
+        # Publish before returning, like get_session_state: the server's detail
+        # snapshot then reads the new source fact from its database.
+        await self.host.publish_runtime_notifications("dsh", [{
+            "method": "session.source.updated", "params": {
+                "sessionId": session_id,
+                "externalSessionId": payload.get("externalSessionId"),
+                "availability": source.get("availability"),
+                "reason": source.get("reason"),
+                "observedAt": source.get("observedAt"),
+                "observationOrigin": "operation",
+            },
+        }])
+        return RuntimeOperationResult(result=payload)
+
     async def get_session_capabilities(
         self,
         session_id: str,

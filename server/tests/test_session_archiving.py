@@ -280,3 +280,175 @@ def test_repository_sync_paths_preserve_aa_unarchive(archive_client, method):
     api.unarchive("session")
     assert asyncio.run(sync()).archived is False
     assert api.stored_state("session") == (0, "archived")
+
+
+def _advertise_native_archive(api: ArchiveClient, *, runtime: str = "dsh") -> None:
+    revision = 1_785_489_256_422_611
+    response = api.client.post(
+        "/connector/ingest",
+        headers=api.connector_headers,
+        json={
+            "notifications": [
+                {
+                    "method": "protocol.capabilitiesUpdated",
+                    "params": {
+                        "revision": revision,
+                        "capabilities": [
+                            {
+                                "capabilityId": "sessionArchive",
+                                "scope": "runtime",
+                                "runtime": runtime,
+                                "version": "1",
+                                "supported": True,
+                                "available": True,
+                                "allowed": True,
+                            }
+                        ],
+                    },
+                }
+            ]
+        },
+    )
+    assert response.status_code == 200, response.text
+
+
+def _capture_runtime_rpc(api, monkeypatch, calls, *, error: Exception | None = None):
+    async def request(connector_id, method, params=None, *, timeout=None):
+        calls.append((method, dict(params or {})))
+        if error is not None:
+            raise error
+        return {"ok": True}
+
+    manager = api.client.app.state.rpc
+
+    async def online(connector_id):
+        return True
+
+    monkeypatch.setattr(manager, "request", request)
+    monkeypatch.setattr(manager, "is_online", online)
+    return calls
+
+
+def test_runtime_archive_capability_archives_through_the_device(archive_client, monkeypatch):
+    api = archive_client
+    api.sync("session_dsh", "dsh", "available")
+    _advertise_native_archive(api)
+    calls = _capture_runtime_rpc(api, monkeypatch, [])
+
+    response = api.client.post(
+        "/sessions/archive", headers=api.headers, json=["session_dsh"]
+    )
+
+    assert response.status_code == 200, response.text
+    assert response.json()["sessions"][0]["archived"] is True
+    assert [method for method, _ in calls] == ["session.archive"]
+    _, params = calls[0]
+    assert params["sessionId"] == "session_dsh"
+    assert params["externalSessionId"] == "external_session_dsh"
+    assert params["archived"] is True
+    assert params["runtime"] == "dsh"
+    assert api.stored_state("session_dsh")[0] == 1
+
+
+def test_runtime_archive_capability_restores_through_the_device(archive_client, monkeypatch):
+    api = archive_client
+    api.sync("session_dsh", "dsh", "available")
+    _advertise_native_archive(api)
+    calls = _capture_runtime_rpc(api, monkeypatch, [])
+
+    response = api.client.post(
+        "/sessions/unarchive", headers=api.headers, json=["session_dsh"]
+    )
+
+    assert response.status_code == 200, response.text
+    assert response.json()["sessions"][0]["archived"] is False
+    assert calls[0][0] == "session.archive"
+    assert calls[0][1]["archived"] is False
+
+
+def test_session_meta_archive_is_mirrored_into_the_device(archive_client, monkeypatch):
+    api = archive_client
+    api.sync("session_dsh", "dsh", "available")
+    _advertise_native_archive(api)
+    calls = _capture_runtime_rpc(api, monkeypatch, [])
+
+    response = api.client.patch(
+        "/sessions/session_dsh/meta", headers=api.headers, json={"archived": True}
+    )
+
+    assert response.status_code == 200, response.text
+    assert response.json()["session"]["archived"] is True
+    assert [method for method, _ in calls] == ["session.archive"]
+    assert calls[0][1]["archived"] is True
+
+
+def test_connector_archive_all_is_mirrored_into_the_device(archive_client, monkeypatch):
+    api = archive_client
+    api.sync("session_dsh", "dsh", "available")
+    _advertise_native_archive(api)
+    calls = _capture_runtime_rpc(api, monkeypatch, [])
+
+    response = api.client.post(
+        f"/connectors/{api.connector_id}/sessions/archive-all",
+        headers=api.headers,
+        json={"archived": True, "scope": "active"},
+    )
+
+    assert response.status_code == 200, response.text
+    assert [method for method, _ in calls] == ["session.archive"]
+
+
+def test_runtimes_without_the_capability_are_not_called(archive_client, monkeypatch):
+    api = archive_client
+    api.sync("session_codex", "codex", "available")
+    calls = _capture_runtime_rpc(api, monkeypatch, [])
+
+    response = api.client.post(
+        "/sessions/archive", headers=api.headers, json=["session_codex"]
+    )
+
+    assert response.status_code == 200, response.text
+    assert response.json()["sessions"][0]["archived"] is True
+    assert calls == []
+
+
+def test_a_refused_device_archive_still_archives_in_agents_anywhere(
+    archive_client, monkeypatch
+):
+    api = archive_client
+    api.sync("session_dsh", "dsh", "available")
+    _advertise_native_archive(api)
+    from agent_server.infra.connector_rpc import ConnectorRpcError
+
+    calls = _capture_runtime_rpc(
+        api, monkeypatch, [], error=ConnectorRpcError("INVALID_PARAMS", "refused")
+    )
+
+    response = api.client.post(
+        "/sessions/archive", headers=api.headers, json=["session_dsh"]
+    )
+
+    assert response.status_code == 200, response.text
+    assert response.json()["sessions"][0]["archived"] is True
+    assert [method for method, _ in calls] == ["session.archive"]
+    assert api.stored_state("session_dsh")[0] == 1
+
+
+def test_a_connector_without_the_archive_method_keeps_the_platform_archive(
+    archive_client, monkeypatch
+):
+    api = archive_client
+    api.sync("session_dsh", "dsh", "available")
+    _advertise_native_archive(api)
+    from agent_server.infra.connector_rpc import ConnectorRpcError
+
+    _capture_runtime_rpc(
+        api, monkeypatch, [], error=ConnectorRpcError("runtime_unsupported", "no method")
+    )
+
+    response = api.client.post(
+        "/sessions/archive", headers=api.headers, json=["session_dsh"]
+    )
+
+    assert response.status_code == 200, response.text
+    assert api.stored_state("session_dsh")[0] == 1

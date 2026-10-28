@@ -17,6 +17,7 @@ from agent_server.core.utc import utc_now
 from agent_server.deps import (
     current_user_id,
     get_rpc,
+    get_session_run_service,
     get_session_runtime_state_cache,
     get_store,
     get_timeline_broker,
@@ -32,6 +33,7 @@ from agent_server.services.dashboard_events import publish_dashboard_changed
 from agent_server.services.session_meta_projection import (
     project_session_meta_for_dashboard,
 )
+from agent_server.services.session_run import SessionRunService, mirror_session_archive
 from agent_server.services.session_runtime_state_cache import SessionRuntimeStateCache
 
 router = APIRouter(prefix="/projects", tags=["projects"])
@@ -203,6 +205,7 @@ async def archive_all_project_sessions(
     store: Store = Depends(get_store),
     manager: ConnectorRpcManager = Depends(get_rpc),
     broker: TimelineBroker = Depends(get_timeline_broker),
+    run_service: SessionRunService = Depends(get_session_run_service),
 ) -> ArchiveAllResponse:
     try:
         sessions = await store.archive_project_sessions(
@@ -215,6 +218,9 @@ async def archive_all_project_sessions(
         raise HTTPException(status_code=404, detail="project not found") from None
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
+    await mirror_session_archive(
+        run_service, sessions, payload.archived, user_id=user_id
+    )
     await publish_dashboard_changed(
         store,
         broker,

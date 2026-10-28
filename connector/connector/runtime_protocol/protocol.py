@@ -135,6 +135,19 @@ class AgentRuntime(ABC):
     ) -> tuple[SessionNotice, ...]:
         return ()
 
+    async def set_session_archived(
+        self,
+        session_id: str,
+        external_session_id: str | None,
+        archived: bool,
+    ) -> RuntimeOperationResult:
+        """Write the session's archived flag in the runtime that owns it.
+
+        Runtimes whose archive state belongs to Agents Anywhere alone keep the
+        default; the server persists the flag itself and never calls this.
+        """
+        raise RuntimeUnsupportedError("set_session_archived")
+
     async def get_session_capabilities(
         self,
         session_id: str,

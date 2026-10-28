@@ -7,6 +7,7 @@ from connector.server.runtime_rpc_params import (
     CommandExecuteParams,
     InteractionRespondParams,
     RuntimeCommandsParams,
+    SessionArchiveParams,
     SessionCommandsParams,
     SessionCreateParams,
     SessionInterruptParams,
@@ -80,6 +81,19 @@ async def dispatch_session_steer(
         parsed.content,
         parsed.attachments,
         parsed.client_message_id,
+    )
+    return operation_result_payload(result)
+
+
+async def dispatch_session_archive(
+    runtime: AgentRuntime,
+    params: dict[str, Any],
+) -> dict[str, Any]:
+    parsed = SessionArchiveParams.parse(params)
+    result = await runtime.set_session_archived(
+        parsed.session_id,
+        parsed.external_session_id,
+        parsed.archived,
     )
     return operation_result_payload(result)
 

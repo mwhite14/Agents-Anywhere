@@ -198,6 +198,15 @@ def optional_int_param(params: dict[str, Any], key: str) -> int | None:
     raise ValueError(f"{key} must be an integer")
 
 
+def optional_bool_param(params: dict[str, Any], key: str) -> bool | None:
+    value = params.get(key)
+    if value is None:
+        return None
+    if not isinstance(value, bool):
+        raise TypeError(f"{key} must be a boolean")
+    return value
+
+
 def string_tuple(value: Any) -> tuple[str, ...]:
     if not isinstance(value, list | tuple):
         raise TypeError("args must be a list")
@@ -305,6 +314,24 @@ class SessionReadParams:
             session_id=required_session_id(params),
             external_session_id=optional_string(params.get("externalSessionId")),
             limit=optional_int_param(params, "limit"),
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class SessionArchiveParams:
+    session_id: str
+    external_session_id: str | None
+    archived: bool
+
+    @classmethod
+    def parse(cls, params: dict[str, Any]) -> SessionArchiveParams:
+        archived = optional_bool_param(params, "archived")
+        if archived is None:
+            raise ValueError("archived is required")
+        return cls(
+            session_id=required_session_id(params),
+            external_session_id=optional_string(params.get("externalSessionId")),
+            archived=archived,
         )
 
 

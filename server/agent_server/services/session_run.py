@@ -7,6 +7,8 @@ import re
 from dataclasses import dataclass
 from typing import Any
 
+from loguru import logger
+
 from agent_server.core.api_namespace import api_v2_path
 from agent_server.core.capabilities import (
     CATALOG_MODEL,
@@ -55,6 +57,11 @@ from agent_server.services.usage_events import (
     message_sent_event,
     session_created_event,
 )
+
+
+# Runtime capability a Connector advertises when its runtime owns the archive
+# flag (DSH hides an archived session in its own client too).
+SESSION_ARCHIVE_CAPABILITY = "sessionArchive"
 
 
 class SessionRunError(RuntimeError):
@@ -822,6 +829,59 @@ class SessionRunService:
         if attachment_media_types:
             _validate_attachment_mime_types(_capability_metadata(capability), attachment_media_types)
 
+    async def sync_native_archive(
+        self,
+        session: SessionView,
+        archived: bool,
+        *,
+        user_id: str,
+    ) -> None:
+        """Mirror one archive change into the session's runtime, when it owns one."""
+
+        if not await self._manager.is_online(session.connectorId):
+            raise SessionRunConflictError("connector is offline")
+        capability_set = ProtocolCapabilitySet.model_validate(
+            await self._store.get_protocol_capabilities(
+                session.connectorId,
+                user_id=user_id,
+            )
+        )
+        runtime_id = _session_runtime_id(session)
+        if not any(
+            item.runtime == session.runtime
+            and item.scope == "runtime"
+            and item.capabilityId == SESSION_ARCHIVE_CAPABILITY
+            and _capability_runtime_id(item) in {None, runtime_id}
+            and item.supported
+            and item.available
+            and item.allowed
+            for item in capability_set.capabilities
+        ):
+            return
+        params: dict[str, Any] = {
+            "sessionId": session.id,
+            "runtime": session.runtime,
+            "runtimeId": runtime_id,
+            "archived": archived,
+        }
+        if session.externalSessionId:
+            params["externalSessionId"] = session.externalSessionId
+        try:
+            await self._manager.request(
+                session.connectorId,
+                "session.archive",
+                params,
+                timeout=30,
+            )
+        except ConnectorOfflineError as exc:
+            raise SessionRunConflictError(str(exc)) from exc
+        except ConnectorRpcError as exc:
+            if exc.code == "runtime_unsupported":
+                # A build without the mutation cannot mirror the change; the
+                # platform flag stays authoritative.
+                return
+            raise SessionRunUpstreamError(exc.message or exc.code) from exc
+
     async def _require_session_capability(
         self,
         session: SessionView,
@@ -1032,6 +1092,32 @@ class SessionRunService:
             raise SessionRunUpstreamError(exc.message or exc.code) from exc
         await self._store.clear_active_run(session_id)
         return RpcResponsePayload(ok=True, result=result)
+
+
+async def mirror_session_archive(
+    session_run: SessionRunService,
+    sessions: list[SessionView],
+    archived: bool,
+    *,
+    user_id: str,
+) -> None:
+    """Write a user archive or restore into the runtime that owns the session.
+
+    Agents Anywhere owns the archive flag of most runtimes, but a runtime with
+    its own archive list (DSH) also hides the session in its own client. The
+    already persisted platform flag stays authoritative, so a runtime that is
+    offline, too old, or refuses the change (for example while the session is
+    still running) never fails the platform archive.
+    """
+    for session in sessions:
+        try:
+            await session_run.sync_native_archive(session, archived, user_id=user_id)
+        except SessionRunError as exc:
+            logger.opt(exception=exc).debug(
+                "native archive sync failed session_id={} code={}",
+                session.id,
+                getattr(exc, "status_code", "unknown"),
+            )
 
 
 def _unconfirmed_creation_detail(session_id: str, code: str, message: str) -> dict[str, Any]:

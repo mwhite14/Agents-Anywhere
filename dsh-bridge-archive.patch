@@ -1,0 +1,106 @@
+@@ -73,7 +73,9 @@
+ };
+ function publicError(error) {
+ 	if (error instanceof BridgeError) return error;
+-	const nativeCode = record(error).code;
++	const failures = error instanceof AggregateError ? error.errors : [error];
++	const nativeCause = failures.find((failure) => typeof record(failure).code === "string");
++	const nativeCode = nativeCause ? record(nativeCause).code : record(error).code;
+ 	if (record(error).isDSHRemoteError === true) {
+ 		if (nativeCode === "session/attachment-invalid") {
+ 			const reason = record(record(error).details).reason;
+@@ -86,6 +88,9 @@
+ 	if (nativeCode === "SESSION_QUERY_SESSION_NOT_FOUND") return new BridgeError("SESSION_NOT_FOUND", "The DSH session no longer exists.");
+ 	if (error instanceof Error && error.name === "AbortError") return new BridgeError("REQUEST_TIMEOUT", "The request was cancelled or timed out.", true);
+ 	if (nativeCode === "SESSION_QUERY_PERSISTENCE_FAILED") return new BridgeError("PERSISTENCE_ERROR", "DSH could not safely read this session. Check the Bridge logs page.", true);
++	if (nativeCode === "WorkspaceUnknownSessionError") return new BridgeError("SESSION_NOT_FOUND", "The DSH session no longer exists.");
++	if (nativeCode === "WorkspaceActiveSessionError" || nativeCode === "WorkspaceArchivedSessionPinError") return new BridgeError("INVALID_PARAMS", nativeCause?.message ?? "DSH refused this change to the session.");
++	if (typeof nativeCode === "string" && nativeCode.startsWith("Workspace")) return new BridgeError("INVALID_PARAMS", "DSH rejected this archive change. Refresh and try again.");
+ 	return new BridgeError("INTERNAL_ERROR", "DSH could not complete this request. Check the Bridge logs page and retry.", true);
+ }
+ //#endregion
+@@ -5214,12 +5219,14 @@
+ 		const projected = projections && (live ? projections.snapshot(live, [
+ 			"modelSelection",
+ 			"permissions",
+-			"agentPreset"
++			"agentPreset",
++			"todos"
+ 		]) : projections.restore({}, log.events, SessionLogOffset(0), log.session, log.inheritedEventCount).snapshot);
+ 		const events = live?.snapshotEvents() ?? log.events;
+ 		const header = live?.header ?? log.session;
+ 		const rawModel = projected?.values.modelSelection?.next;
+ 		const lastUsed = projected?.values.modelSelection?.lastUsed;
++		const todos = todosFromProjection(projected?.values.todos);
+ 		const request = record(record(events.findLast((event) => event.type === "request/header")?.data).header).config;
+ 		const model = rawModel ?? modelFromRecord(request);
+ 		const permission = projected?.values.permissions?.currentValue;
+@@ -5241,6 +5248,7 @@
+ 					selectable: permission !== "custom"
+ 				} } : {},
+ 				...lastUsed ? { lastUsedModel: lastUsed } : {},
++				...todos ? { todos } : {},
+ 				...permission === "custom" ? { permission: {
+ 					id: "custom",
+ 					name: "Custom",
+@@ -5250,6 +5258,17 @@
+ 		};
+ 	}
+ };
++const TODO_STATUSES = new Set(["completed", "in_progress", "pending"]);
++/** DSH publishes the whole list; drop malformed rows instead of breaking state. */
++function todosFromProjection(value) {
++	if (!Array.isArray(value)) return void 0;
++	const todos = value.flatMap((entry) => {
++		const todo = record(entry);
++		if (typeof todo.content !== "string" || !todo.content || !TODO_STATUSES.has(String(todo.status))) return [];
++		return [{ content: todo.content, status: String(todo.status) }];
++	});
++	return todos.length > 0 ? todos : void 0;
++}
+ function modelFromRecord(value) {
+ 	const model = record(value);
+ 	if (typeof model.provider !== "string" || typeof model.model !== "string") return;
+@@ -5816,6 +5835,16 @@
+ 		await this.source.requireAvailable(id);
+ 		this.ctx.get("agents")?.get(id)?.cancel({ kind: "user" });
+ 	}
++	/** AA_ARCHIVE: write the DSH archive set so the session disappears from DSH too. */
++	async setArchived(id, archived) {
++		await this.source.initialize();
++		const registry = this.ctx.workspaceRegistry;
++		if (!archived) {
++			if (this.source.archived.has(id)) await registry.unarchiveSession(id);
++			return;
++		}
++		await registry.archiveSession(id, { stopActivity: true });
++	}
+ 	async close() {
+ 		this.closed = true;
+ 		this.presence.close();
+@@ -6340,7 +6369,8 @@
+ 						"permission/preset",
+ 						"sandbox/mode",
+ 						"approval/policy",
+-						"agent-preset/selected"
++						"agent-preset/selected",
++						"todo/write"
+ 					].includes(change.event.type)) statuses.add(id);
+ 					const projection = this.projections.get(id);
+ 					if (!projection) {
+@@ -6677,6 +6707,15 @@
+ 				if (!this.reader.native || typeof params.noticeId !== "string" || typeof params.actionId !== "string") throw new BridgeError("INVALID_PARAMS", "A question and action are required.");
+ 				if (this.reader.native.approvals.owns(this.namespace, id, params.noticeId)) return this.reader.native.approvals.respond(this.namespace, id, params.noticeId, params.actionId);
+ 				return this.reader.native.questions.respond(this.namespace, id, params.noticeId, params.actionId, params.inputData);
++			}
++			case "session.setArchived": {
++				const native = this.reader.native;
++				if (!native) throw new BridgeError("UNSUPPORTED_OPERATION", "Archive changes are unavailable.");
++				if (typeof params.archived !== "boolean") throw new BridgeError("INVALID_PARAMS", "The archived flag must be a boolean.");
++				const id = await this.resolve(params, signal, true);
++				await native.setArchived(id, params.archived);
++				const state = await native.source.state(id);
++				return { sessionId: sessionId(this.namespace, id), externalSessionId: id, sourceState: { ...state, observationOrigin: "operation" } };
+ 			}
+ 			case "session.getCapabilities": {
+ 				const id = await this.resolve(params, signal, true);
