@@ -66,6 +66,26 @@ class SessionNotificationPlannerTest {
     }
 
     @Test
+    fun runningToWaitingApprovalSaysApprovalNeeded() {
+        val planner = SessionNotificationPlanner(mode = SessionNotificationMode.ALL_SESSIONS)
+        planner.seed(listOf(session("approval", "running")))
+        val events = planner.onSnapshot(listOf(session("approval", "waiting_approval")))
+        assertEquals(1, events.size)
+        assertEquals("needs your approval to continue", events.single().body)
+        assertTrue(events.single().waitingForInput)
+    }
+
+    @Test
+    fun waitingApprovalWithoutPriorRunStillNotifies() {
+        val planner = SessionNotificationPlanner(mode = SessionNotificationMode.ALL_SESSIONS)
+        planner.seed(listOf(session("approval", "idle")))
+        val events = planner.onSnapshot(listOf(session("approval", "waiting_approval")))
+        assertEquals(1, events.size)
+        assertEquals("needs your approval to continue", events.single().body)
+        assertTrue(events.single().waitingForInput)
+    }
+
+    @Test
     fun waitingWithoutPriorRunStillNotifies() {
         val planner = SessionNotificationPlanner(mode = SessionNotificationMode.ALL_SESSIONS)
         planner.seed(listOf(session("approval", "idle")))

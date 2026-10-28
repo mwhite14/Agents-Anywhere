@@ -112,7 +112,7 @@
 - 长会话流式输出的开销降低；模型设置里，不同供应商的同名模型不再被合成一项。（[#394](https://github.com/anywhere-labs/Agents-Anywhere/pull/394)、[#411](https://github.com/anywhere-labs/Agents-Anywhere/pull/411)）
 - 「立即更新」会从官网 www.agents-anywhere.com 下载最新 APK。（[#458](https://github.com/anywhere-labs/Agents-Anywhere/pull/458)）
 - 会话页在输入框上方显示 Agent 的待办卡片：实时更新已完成、进行中、待处理的数量，可展开逐项查看或收起；新一轮开始时随 DSH 清空，不再看不到正在做的工作。（[54872d2d](https://github.com/mwhite14/Agents-Anywhere/commit/54872d2d)）
-- 设置里可以按「关闭」「仅当前会话」「全部会话」选择会话通知：选择「全部会话」后离开 App 或切到其他应用，回合结束和等待回复时仍会收到通知；点通知直接打开对应会话。App 被从最近任务划掉后不再通知。（[c4e0ab15](https://github.com/mwhite14/Agents-Anywhere/commit/c4e0ab15)）
+- 设置里可以按「关闭」「仅当前会话」「全部会话」选择会话通知：选择「全部会话」后离开 App 或切到其他应用，回合结束、等待回复和等待批准时仍会收到通知，等待批准会提示「needs your approval to continue」；点通知直接打开对应会话。App 被从最近任务划掉后不再通知。（[c4e0ab15](https://github.com/mwhite14/Agents-Anywhere/commit/c4e0ab15)、[f60c1db5](https://github.com/mwhite14/Agents-Anywhere/commit/f60c1db5)）
 
 ### iOS
 
