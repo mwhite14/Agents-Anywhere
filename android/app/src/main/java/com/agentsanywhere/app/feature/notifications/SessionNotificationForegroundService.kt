@@ -40,7 +40,7 @@ class SessionNotificationForegroundService : Service() {
         val sessionStore = AuthSessionStore(this)
         val clientId = RealtimeClientIdStore(this).readOrCreate()
         val controller = DashboardRealtimeController(RealtimeApi(), sessionStore, clientId)
-        val center = SessionNotifications.center(this)
+        val center = SessionNotifications.centerForService(this)
         val planner = SessionNotificationPlanner(mode = SessionNotificationSettings.mode(this))
         connection = controller.start(
             scope = scope,

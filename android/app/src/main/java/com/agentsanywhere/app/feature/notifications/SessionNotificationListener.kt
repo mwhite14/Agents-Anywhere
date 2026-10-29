@@ -7,7 +7,9 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.platform.LocalContext
 import com.agentsanywhere.app.feature.auth.AuthSessionReader
 
@@ -50,6 +52,11 @@ fun SessionNotificationListenerEffect(
  * Posts in-app notifications from the dashboard snapshots the main screen already
  * receives. Only "current session" mode uses this path; "all sessions" is served
  * by the foreground service, and running both would double-notify.
+ *
+ * The effect keys on the context and auth store, not on the snapshot. A snapshot
+ * that arrives after the service path already handled it, or after a mode change,
+ * must not restart the planner with a blank history, because that history is what
+ * keeps one status edge from notifying twice.
  */
 @Composable
 fun InAppSessionNotificationEffect(
@@ -60,15 +67,23 @@ fun InAppSessionNotificationEffect(
     val context = LocalContext.current
     val planner = remember { SessionNotificationPlanner() }
 
-    LaunchedEffect(snapshotSessions) {
+    // Read the viewed session inside the effect so a view change cannot restart
+    // it; a restart would replace the planner with a fresh, unnotified history.
+    val currentLastViewedSessionId by rememberUpdatedState(lastViewedSessionId)
+    val currentSnapshotSessions by rememberUpdatedState(snapshotSessions)
+
+    LaunchedEffect(context, authStore) {
         planner.mode = SessionNotificationSettings.mode(context)
-        planner.lastViewedSessionId = lastViewedSessionId
+        planner.lastViewedSessionId = currentLastViewedSessionId
         if (planner.mode != SessionNotificationMode.CURRENT_SESSION) return@LaunchedEffect
-        if (snapshotSessions.isEmpty()) return@LaunchedEffect
+        // The dashboard repeats a snapshot whenever any session changes. The
+        // planner only notifies on a status edge, so the replay is quiet.
+        val sessions = currentSnapshotSessions
+        if (sessions.isEmpty()) return@LaunchedEffect
         if (planner.seeded) {
-            planner.onSnapshot(snapshotSessions).forEach { SessionNotifications.post(context, it) }
+            planner.onSnapshot(sessions).forEach { SessionNotifications.post(context, it) }
         } else {
-            planner.seed(snapshotSessions)
+            planner.seed(sessions)
         }
     }
 }

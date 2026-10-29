@@ -28,4 +28,7 @@ object SessionNotifications {
     fun post(context: Context, event: SessionNotificationEvent) {
         center(context).post(event)
     }
+
+    /** The background service posts through the same center as the in-app listener. */
+    fun centerForService(context: Context): SessionNotificationCenter = center(context)
 }
