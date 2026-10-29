@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, WebSocket
@@ -10,6 +11,7 @@ from starlette.requests import HTTPConnection
 from agent_server.api.server_push_websocket import (
     run_server_push_until_disconnect,
 )
+from agent_server.api.sessions import read_session_notices_for_snapshot
 from agent_server.core.device_runtime import DeviceRuntimeView
 from agent_server.core.utc import utc_now
 from agent_server.deps import (
@@ -29,12 +31,44 @@ from agent_server.services.session_meta_projection import (
     project_session_meta_for_dashboard,
 )
 from agent_server.services.session_runtime_state_cache import SessionRuntimeStateCache
+from agent_server.services.session_wait_kind import WAIT_KIND_FIELD, pending_wait_kind
 
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
+
+logger = logging.getLogger(__name__)
 
 
 def _get_ws_tickets(conn: HTTPConnection) -> ClientWsTicketManager:
     return conn.app.state.ws_tickets
+
+
+async def _dashboard_sessions(
+    manager: ConnectorRpcManager,
+    sessions: list[Any],
+) -> list[dict[str, Any]]:
+    """Session rows for the snapshot, each carrying its open-interaction wait kind.
+
+    A client labels a pending wait from ``waitReason``. The session status merges
+    a question and an approval into ``waiting_approval``, so without this field
+    the only other answer would be one notice read per session per client. Only
+    sessions that are blocked on the user are asked, and an offline connector
+    or a slow runtime answer leaves the field absent rather than delaying the
+    snapshot.
+    """
+    rows: list[dict[str, Any]] = []
+    for session in sessions:
+        row = session.model_dump(mode="json")
+        if session.status == "waiting_approval":
+            try:
+                notices = await read_session_notices_for_snapshot(manager, session)
+            except Exception:  # noqa: BLE001 - the label is optional, the row is not.
+                logger.debug("dashboard wait kind unavailable for %s", session.id)
+            else:
+                kind = pending_wait_kind(notices)
+                if kind is not None:
+                    row[WAIT_KIND_FIELD] = kind
+        rows.append(row)
+    return rows
 
 
 async def _dashboard_snapshot(
@@ -63,10 +97,7 @@ async def _dashboard_snapshot(
             )
         ],
         "projects": [project.model_dump(mode="json") for project in projects],
-        "sessions": [
-            session.model_dump(mode="json")
-            for session in sessions
-        ],
+        "sessions": await _dashboard_sessions(manager, sessions),
         # Device pages render runtime lifecycle from this list, so a status
         # change reaches them without a manual refresh.
         "runtimes": [

@@ -10,12 +10,14 @@ class SessionNotificationPlannerTest {
         id: String,
         status: String,
         title: String? = "Fix login",
+        waitKind: SessionWaitingKind? = null,
     ) = NotifiableSession(
         id = id,
         status = status,
         title = title,
         workspaceLabel = "cairn",
         runtimeName = "dsh",
+        waitKind = waitKind,
     )
 
     @Test
@@ -153,6 +155,58 @@ class SessionNotificationPlannerTest {
         val events = planner.onSnapshot(listOf(session("a", "waiting")))
         assertEquals("is waiting for your input", events.single().body)
         assertTrue(events.single().waitingForInput)
+    }
+
+    @Test
+    fun serverReportedInputRequestSaysInputEvenWhenStatusIsWaitingApproval() {
+        // DSH publishes a blocking question as "waiting_approval" too.
+        val planner = SessionNotificationPlanner(mode = SessionNotificationMode.ALL_SESSIONS)
+        planner.seed(listOf(session("a", "running")))
+        val events = planner.onSnapshot(
+            listOf(session("a", "waiting_approval", waitKind = SessionWaitingKind.INPUT)),
+        )
+        assertEquals(1, events.size)
+        assertEquals("is waiting for your input", events.single().body)
+        assertTrue(events.single().waitingForInput)
+    }
+
+    @Test
+    fun serverReportedApprovalSaysApprovalEvenWhenStatusIsWaiting() {
+        val planner = SessionNotificationPlanner(mode = SessionNotificationMode.ALL_SESSIONS)
+        planner.seed(listOf(session("a", "running")))
+        val events = planner.onSnapshot(
+            listOf(session("a", "waiting", waitKind = SessionWaitingKind.APPROVAL)),
+        )
+        assertEquals("needs your approval to continue", events.single().body)
+        assertFalse(events.single().waitingForInput)
+    }
+
+    @Test
+    fun waitReasonWireValuesMapToKinds() {
+        assertEquals(SessionWaitingKind.INPUT, SessionWaitingKind.fromWireValue("input"))
+        assertEquals(SessionWaitingKind.APPROVAL, SessionWaitingKind.fromWireValue("approval"))
+        assertEquals(null, SessionWaitingKind.fromWireValue(null))
+        assertEquals(null, SessionWaitingKind.fromWireValue("something_else"))
+    }
+
+    @Test
+    fun missingKindFallsBackToTheStatus() {
+        assertEquals(SessionWaitingKind.INPUT, SessionWaitingKind.fromStatus("waiting", null))
+        assertEquals(SessionWaitingKind.APPROVAL, SessionWaitingKind.fromStatus("waiting_approval", null))
+        assertEquals(null, SessionWaitingKind.fromStatus("idle", SessionWaitingKind.INPUT))
+        assertEquals(
+            SessionWaitingKind.INPUT,
+            SessionWaitingKind.fromStatus("waiting_approval", SessionWaitingKind.INPUT),
+        )
+    }
+
+    @Test
+    fun interactionTypesMapToWaitingKinds() {
+        assertEquals(SessionWaitingKind.INPUT, SessionWaitingKind.fromInteractionType("input_request"))
+        assertEquals(SessionWaitingKind.INPUT, SessionWaitingKind.fromInteractionType("confirmation"))
+        assertEquals(SessionWaitingKind.APPROVAL, SessionWaitingKind.fromInteractionType("approval"))
+        assertEquals(null, SessionWaitingKind.fromInteractionType("execution_error"))
+        assertEquals(null, SessionWaitingKind.fromInteractionType(null))
     }
 
     @Test
