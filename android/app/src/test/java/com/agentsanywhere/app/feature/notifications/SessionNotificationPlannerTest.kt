@@ -1,6 +1,7 @@
 package com.agentsanywhere.app.feature.notifications
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -54,15 +55,65 @@ class SessionNotificationPlannerTest {
     }
 
     @Test
-    fun waitingForInputAlwaysNotifiesEvenInCurrentMode() {
+    fun waitingForInputAlertsInCurrentModeOnlyForTheViewedSession() {
         val planner = SessionNotificationPlanner(
             mode = SessionNotificationMode.CURRENT_SESSION,
             lastViewedSessionId = "viewed",
         )
-        planner.seed(listOf(session("viewed", "running"), session("approval", "running")))
-        val events = planner.onSnapshot(listOf(session("viewed", "running"), session("approval", "waiting")))
-        assertEquals(listOf("approval"), events.map { it.sessionId })
-        assertTrue(events.single().waitingForInput)
+        planner.seed(listOf(session("viewed", "running"), session("other", "running")))
+        val events = planner.onSnapshot(listOf(session("viewed", "running"), session("other", "waiting")))
+        assertEquals(emptyList<SessionNotificationEvent>(), events)
+    }
+
+    @Test
+    fun pendingInputWaitFiresOnceAcrossRepeatedSnapshots() {
+        val planner = SessionNotificationPlanner(mode = SessionNotificationMode.ALL_SESSIONS)
+        planner.seed(listOf(session("a", "running")))
+        val first = planner.onSnapshot(listOf(session("a", "waiting")))
+        assertEquals(1, first.size)
+        assertTrue(first.single().waitingForInput)
+        // The dashboard repeats the snapshot whenever any session changes.
+        assertEquals(emptyList<SessionNotificationEvent>(), planner.onSnapshot(listOf(session("a", "waiting"))))
+        assertEquals(emptyList<SessionNotificationEvent>(), planner.onSnapshot(listOf(session("a", "waiting"))))
+        // Answering the question returns the session to running: no event.
+        assertEquals(emptyList<SessionNotificationEvent>(), planner.onSnapshot(listOf(session("a", "running"))))
+        // A second question in the same turn is a new edge and alerts again.
+        assertEquals(1, planner.onSnapshot(listOf(session("a", "waiting"))).size)
+    }
+
+    @Test
+    fun finishedTurnFiresOnce() {
+        val planner = SessionNotificationPlanner(mode = SessionNotificationMode.ALL_SESSIONS)
+        planner.seed(listOf(session("a", "running")))
+        assertEquals(1, planner.onSnapshot(listOf(session("a", "idle"))).size)
+        assertEquals(emptyList<SessionNotificationEvent>(), planner.onSnapshot(listOf(session("a", "idle"))))
+    }
+
+    @Test
+    fun waitThatAppearsAfterTheTurnStillFiresOnce() {
+        val planner = SessionNotificationPlanner(mode = SessionNotificationMode.ALL_SESSIONS)
+        planner.seed(listOf(session("a", "running")))
+        assertEquals(1, planner.onSnapshot(listOf(session("a", "idle"))).size)
+        assertEquals(emptyList<SessionNotificationEvent>(), planner.onSnapshot(listOf(session("a", "idle"))))
+        val wait = planner.onSnapshot(listOf(session("a", "waiting")))
+        assertEquals(1, wait.size)
+        assertTrue(wait.single().waitingForInput)
+        assertEquals(emptyList<SessionNotificationEvent>(), planner.onSnapshot(listOf(session("a", "waiting"))))
+    }
+
+    @Test
+    fun seededWaitingSessionDoesNotFireOnConnect() {
+        val planner = SessionNotificationPlanner(mode = SessionNotificationMode.ALL_SESSIONS)
+        planner.seed(listOf(session("a", "waiting")))
+        assertEquals(emptyList<SessionNotificationEvent>(), planner.onSnapshot(listOf(session("a", "waiting"))))
+    }
+
+    @Test
+    fun sessionThatLeavesAndReturnsRebaselines() {
+        val planner = SessionNotificationPlanner(mode = SessionNotificationMode.ALL_SESSIONS)
+        planner.seed(listOf(session("a", "waiting")))
+        assertEquals(emptyList<SessionNotificationEvent>(), planner.onSnapshot(emptyList()))
+        assertEquals(1, planner.onSnapshot(listOf(session("a", "waiting"))).size)
     }
 
     @Test
@@ -72,7 +123,7 @@ class SessionNotificationPlannerTest {
         val events = planner.onSnapshot(listOf(session("approval", "waiting_approval")))
         assertEquals(1, events.size)
         assertEquals("needs your approval to continue", events.single().body)
-        assertTrue(events.single().waitingForInput)
+        assertFalse(events.single().waitingForInput)
     }
 
     @Test
@@ -82,7 +133,7 @@ class SessionNotificationPlannerTest {
         val events = planner.onSnapshot(listOf(session("approval", "waiting_approval")))
         assertEquals(1, events.size)
         assertEquals("needs your approval to continue", events.single().body)
-        assertTrue(events.single().waitingForInput)
+        assertFalse(events.single().waitingForInput)
     }
 
     @Test
@@ -91,6 +142,16 @@ class SessionNotificationPlannerTest {
         planner.seed(listOf(session("approval", "idle")))
         val events = planner.onSnapshot(listOf(session("approval", "waiting")))
         assertEquals(1, events.size)
+        assertTrue(events.single().waitingForInput)
+        assertEquals("is waiting for your input", events.single().body)
+    }
+
+    @Test
+    fun inputWaitSaysInputNotApproval() {
+        val planner = SessionNotificationPlanner(mode = SessionNotificationMode.ALL_SESSIONS)
+        planner.seed(listOf(session("a", "running")))
+        val events = planner.onSnapshot(listOf(session("a", "waiting")))
+        assertEquals("is waiting for your input", events.single().body)
         assertTrue(events.single().waitingForInput)
     }
 

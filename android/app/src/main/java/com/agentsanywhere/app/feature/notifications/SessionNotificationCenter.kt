@@ -16,8 +16,12 @@ import com.agentsanywhere.app.R
  * Posts one system notification per finished turn.
  *
  * A session keeps a single notification id, so a second finished turn in the same
- * session replaces the first instead of stacking. Opening the session clears its
- * mute, so it notifies again on the next finished turn.
+ * session replaces the first instead of stacking.
+ *
+ * Each wait is announced once. A posted "waiting for your input" marks the session
+ * muted, so no replay of the snapshot, no second listener and no service restart
+ * repeats the same alert. The mute is persisted and cleared when the user opens
+ * the session or sends it a message.
  */
 class SessionNotificationCenter(private val context: Context) {
     private val mutedSessionIds = mutableSetOf<String>()
@@ -53,6 +57,7 @@ class SessionNotificationCenter(private val context: Context) {
                 else NotificationCompat.PRIORITY_DEFAULT,
             )
         manager.notify(notificationIdFor(event.sessionId), builder.build())
+        if (event.waitingForInput) muteUntilNextTurn(event.sessionId)
     }
 
     private fun canNotify(): Boolean {
@@ -74,6 +79,12 @@ class SessionNotificationCenter(private val context: Context) {
         }
         manager.createNotificationChannel(channel)
         channelReady = true
+    }
+
+    /** A posted input wait stays quiet until the user opens or replies to it. */
+    private fun muteUntilNextTurn(sessionId: String) {
+        if (!mutedSessionIds.add(sessionId)) return
+        SessionNotificationSettings.addMutedSession(context, sessionId)
     }
 
     /** Opening a session makes it eligible to notify again. */
