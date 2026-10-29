@@ -29,6 +29,12 @@ data class RemoteSession(
     val runtimeId: String = runtime,
     val runtimeType: String = runtime,
     val runtimeName: String = runtimeType,
+    /**
+     * Why the session waits for the user, when the server knows: "input" for a
+     * question, "approval" for a tool approval. Older servers omit it, and the
+     * status alone cannot tell the two apart.
+     */
+    val waitReason: String? = null,
 )
 
 data class RemoteSessionResponse(

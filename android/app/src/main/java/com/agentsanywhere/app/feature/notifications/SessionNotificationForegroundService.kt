@@ -57,6 +57,15 @@ class SessionNotificationForegroundService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int = START_STICKY
 
+    override fun onTaskRemoved(rootIntent: Intent?) {
+        // Swiping the app away stops notifications for good. Mutes are per-turn
+        // signal, so clear them: a wait announced in that run must not silence
+        // the same session's wait after the next launch.
+        SessionNotificationSettings.clearMutedSessions(this)
+        stopSelf()
+        super.onTaskRemoved(rootIntent)
+    }
+
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onDestroy() {

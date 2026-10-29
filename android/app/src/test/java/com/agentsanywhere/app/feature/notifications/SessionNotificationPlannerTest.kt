@@ -10,12 +10,14 @@ class SessionNotificationPlannerTest {
         id: String,
         status: String,
         title: String? = "Fix login",
+        waitKind: SessionWaitingKind? = null,
     ) = NotifiableSession(
         id = id,
         status = status,
         title = title,
         workspaceLabel = "cairn",
         runtimeName = "dsh",
+        waitKind = waitKind,
     )
 
     @Test
@@ -156,25 +158,35 @@ class SessionNotificationPlannerTest {
     }
 
     @Test
-    fun reportedInputRequestSaysInputEvenWhenStatusIsWaitingApproval() {
+    fun serverReportedInputRequestSaysInputEvenWhenStatusIsWaitingApproval() {
         // DSH publishes a blocking question as "waiting_approval" too.
         val planner = SessionNotificationPlanner(mode = SessionNotificationMode.ALL_SESSIONS)
         planner.seed(listOf(session("a", "running")))
-        planner.waitingKinds = mapOf("a" to SessionWaitingKind.INPUT)
-        val events = planner.onSnapshot(listOf(session("a", "waiting_approval")))
+        val events = planner.onSnapshot(
+            listOf(session("a", "waiting_approval", waitKind = SessionWaitingKind.INPUT)),
+        )
         assertEquals(1, events.size)
         assertEquals("is waiting for your input", events.single().body)
         assertTrue(events.single().waitingForInput)
     }
 
     @Test
-    fun reportedApprovalSaysApprovalEvenWhenStatusIsWaiting() {
+    fun serverReportedApprovalSaysApprovalEvenWhenStatusIsWaiting() {
         val planner = SessionNotificationPlanner(mode = SessionNotificationMode.ALL_SESSIONS)
         planner.seed(listOf(session("a", "running")))
-        planner.waitingKinds = mapOf("a" to SessionWaitingKind.APPROVAL)
-        val events = planner.onSnapshot(listOf(session("a", "waiting")))
+        val events = planner.onSnapshot(
+            listOf(session("a", "waiting", waitKind = SessionWaitingKind.APPROVAL)),
+        )
         assertEquals("needs your approval to continue", events.single().body)
         assertFalse(events.single().waitingForInput)
+    }
+
+    @Test
+    fun waitReasonWireValuesMapToKinds() {
+        assertEquals(SessionWaitingKind.INPUT, SessionWaitingKind.fromWireValue("input"))
+        assertEquals(SessionWaitingKind.APPROVAL, SessionWaitingKind.fromWireValue("approval"))
+        assertEquals(null, SessionWaitingKind.fromWireValue(null))
+        assertEquals(null, SessionWaitingKind.fromWireValue("something_else"))
     }
 
     @Test

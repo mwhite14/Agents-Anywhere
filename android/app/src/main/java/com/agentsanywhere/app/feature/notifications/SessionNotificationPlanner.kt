@@ -30,9 +30,9 @@ object SessionNotificationMode {
  * A turn that blocks on the user and a turn that blocks on an approval both end
  * up in the "waiting_approval" status, so the status alone cannot tell them
  * apart. The body text therefore follows [SessionWaitingKind.fromStatus]: when
- * the runtime reports which kind this is, that answer wins, otherwise the
- * planner falls back to "waiting" meaning input and "waiting_approval" meaning
- * approval. Each wait fires once, on the edge into it.
+ * the server reports the wait kind on the session, that answer wins, otherwise
+ * the planner falls back to "waiting" meaning input and "waiting_approval"
+ * meaning approval. Each wait fires once, on the edge into it.
  *
  * Modes: "off" posts nothing; "current" posts only for the session the user is
  * viewing; "all" posts for every session.
@@ -40,8 +40,6 @@ object SessionNotificationMode {
 internal class SessionNotificationPlanner(
     var mode: String = SessionNotificationMode.CURRENT_SESSION,
     var lastViewedSessionId: String? = null,
-    /** Last observed kind of each session's pending wait, from the runtime. */
-    var waitingKinds: Map<String, SessionWaitingKind> = emptyMap(),
 ) {
     /** Last known status of every session in the last snapshot. */
     private val lastStatusById = mutableMapOf<String, String>()
@@ -89,7 +87,7 @@ internal class SessionNotificationPlanner(
             else -> session.id == lastViewedSessionId
         }
         if (!visible) return null
-        val wait = SessionWaitingKind.fromStatus(session.status, waitingKinds[session.id])
+        val wait = SessionWaitingKind.fromStatus(session.status, session.waitKind)
         val body = when {
             wait == SessionWaitingKind.INPUT -> WAITING_BODY
             wait == SessionWaitingKind.APPROVAL -> APPROVAL_BODY
@@ -143,6 +141,13 @@ enum class SessionWaitingKind {
             else -> null
         }
 
+        /** Map the server's `waitReason`; absent or unknown values decide nothing. */
+        fun fromWireValue(value: String?): SessionWaitingKind? = when (value) {
+            "input" -> INPUT
+            "approval" -> APPROVAL
+            else -> null
+        }
+
         /** Map an open interaction's `interactionType`; unknown values decide nothing. */
         fun fromInteractionType(interactionType: String?): SessionWaitingKind? = when (interactionType) {
             "input_request", "confirmation" -> INPUT
@@ -159,6 +164,8 @@ data class NotifiableSession(
     val title: String?,
     val workspaceLabel: String,
     val runtimeName: String,
+    /** The wait kind the server reported for this session, when it knows one. */
+    val waitKind: SessionWaitingKind? = null,
 )
 
 data class SessionNotificationEvent(
@@ -182,6 +189,7 @@ fun List<RemoteSession>.toNotifiableSessions(snapshot: RemoteDashboardSnapshot):
             title = session.title,
             workspaceLabel = projectNames[session.projectId]?.takeIf { it.isNotBlank() } ?: "Session",
             runtimeName = session.runtimeName,
+            waitKind = SessionWaitingKind.fromWireValue(session.waitReason),
         )
     }
 }

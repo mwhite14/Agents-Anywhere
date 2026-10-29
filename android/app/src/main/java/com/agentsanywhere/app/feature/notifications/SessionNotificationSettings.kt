@@ -43,6 +43,11 @@ object SessionNotificationSettings {
         prefs(context).edit().putStringSet(KEY_MUTED, trimmed).apply()
     }
 
+    /** Drop every mute; the next launch re-baselines the dashboard. */
+    fun clearMutedSessions(context: Context) {
+        prefs(context).edit().remove(KEY_MUTED).apply()
+    }
+
     fun removeMutedSession(context: Context, sessionId: String) {
         val current = mutedSessions(context).toMutableSet()
         if (!current.remove(sessionId)) return

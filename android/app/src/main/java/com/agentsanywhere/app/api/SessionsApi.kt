@@ -662,6 +662,8 @@ class SessionsApi(
             ?: optNullableString("displayName")
             ?: optNullableString("name")
             ?: runtimeId
+        // Set only on dashboard rows for a session blocked on the user.
+        val waitReason = optNullableString("waitReason")
         return RemoteSession(
             id = getString("id"),
             connectorId = getString("connectorId"),
@@ -689,6 +691,7 @@ class SessionsApi(
             runtimeId = runtimeId,
             runtimeType = runtimeType,
             runtimeName = runtimeName,
+            waitReason = waitReason,
         )
     }
 
