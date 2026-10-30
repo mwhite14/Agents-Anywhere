@@ -20,6 +20,9 @@ _RUNTIME_CAPABILITY_MAP: tuple[tuple[str, str], ...] = (
     ("commands", "session.commands"),
     ("interactions", "session.interaction.approval"),
     ("attachments", "runtime.attachment"),
+    # AA_ARCHIVE: a runtime that owns its own archive flag (DSH) advertises it
+    # here, so the server knows it can mirror an archive into the runtime.
+    ("sessionArchive", "sessionArchive"),
 )
 
 
