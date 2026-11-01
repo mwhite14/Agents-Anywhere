@@ -10,9 +10,15 @@ from agent_server.core.capabilities import (
     CATALOG_PERMISSION,
     RUNTIME_ATTACHMENT,
     RUNTIME_CONFIG,
+    SESSION_CLOSE,
     SESSION_COMMANDS,
+    SESSION_CONFIGURATION_READ,
+    SESSION_CONFIGURATION_UPDATE,
+    SESSION_EXECUTION_POSITION_READ,
+    SESSION_EXECUTION_POSITION_SELECT,
     SESSION_INTERACTION_APPROVAL,
     SESSION_INTERRUPT,
+    SESSION_RECOVER,
     SESSION_SEND_MESSAGE,
     SESSION_STEER,
 )
@@ -40,6 +46,12 @@ _INHERITED_RUNTIME_CAPABILITY_IDS = (
     CATALOG_MODEL,
     CATALOG_PERMISSION,
     CATALOG_EFFORT,
+    SESSION_CLOSE,
+    SESSION_RECOVER,
+    SESSION_CONFIGURATION_READ,
+    SESSION_CONFIGURATION_UPDATE,
+    SESSION_EXECUTION_POSITION_READ,
+    SESSION_EXECUTION_POSITION_SELECT,
 )
 
 
@@ -202,6 +214,8 @@ class SessionCapabilityIndex:
         for capability_id in _INHERITED_RUNTIME_CAPABILITY_IDS:
             source = next((group[capability_id] for group in groups
                            if capability_id in group), None)
+            if source is None and capability_id in {SESSION_CLOSE, SESSION_RECOVER, SESSION_EXECUTION_POSITION_READ, SESSION_EXECUTION_POSITION_SELECT, SESSION_CONFIGURATION_READ, SESSION_CONFIGURATION_UPDATE}:
+                continue
             capabilities.append(platform_scoped_session_capability(
                 session, capability_id, source,
                 online=session.connectorStatus == "online",
@@ -232,7 +246,7 @@ def platform_scoped_session_capability(
     )
     runtime_allowed = source_capability.allowed if source_capability is not None else True
     available = supported and runtime_available and online
-    allowed = runtime_allowed and session.takeover
+    allowed = runtime_allowed and (session.takeover or capability_id in {SESSION_EXECUTION_POSITION_READ, SESSION_CONFIGURATION_READ})
     unavailable_reason = platform_unavailable_reason(
         source_capability,
         supported,

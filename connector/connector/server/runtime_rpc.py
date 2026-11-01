@@ -11,6 +11,7 @@ from connector.runtime_protocol import (
     RuntimeSupervisor,
 )
 from connector.runtime_protocol.instance_binding import runtime_config_for_instance
+from connector.runtime_protocol.workflows import RuntimeWorkflowRequest
 from connector.server.runtime_rpc_params import (
     RuntimeCatalogParams,
     RuntimeConfigParams,
@@ -46,6 +47,17 @@ from connector.server.runtime_turn_rpc import (
     dispatch_session_steer,
 )
 
+WORKFLOW_RPC = {
+    "workspace.prepare": "prepare", "workspace.preparation.get": "get_preparation",
+    "workspace.preparation.refresh": "refresh_preparation", "workspace.preparation.cancel": "cancel_preparation",
+    "workspace.preparation.respond": "respond_preparation", "workspace.preparation.reserve": "reserve",
+    "session.creation.begin": "begin_creation", "session.creation.get": "get_creation",
+    "session.creation.respond": "respond_creation", "session.creation.cancel": "cancel_initialization",
+    "interaction.response.get": "get_response", "session.tree": "get_tree", "session.position.select": "select_position",
+    "session.close": "close_session", "session.recover": "recover_session",
+    "session.agent.operate": "agent_operation",
+}
+
 BackgroundScheduler = Callable[[Any], None]
 
 
@@ -54,6 +66,8 @@ class RuntimeRpcHandler:
 
     METHODS: ClassVar[set[str]] = {
         "runtime.discover",
+        "session.configuration.get",
+        "session.configuration.update",
         "runtime.configSchema",
         "runtime.config",
         "runtime.validateConfig",
@@ -90,9 +104,21 @@ class RuntimeRpcHandler:
         self.schedule_background = schedule_background
 
     def supports(self, method: str) -> bool:
-        return method in self.METHODS
+        return method in self.METHODS or method in WORKFLOW_RPC
 
     async def dispatch(self, method: str, params: dict[str, Any]) -> Any:
+        if method in {"session.configuration.get", "session.configuration.update"}:
+            runtime = self._resolve_agent_runtime(params)
+            session_id = params.get("sessionId")
+            if not isinstance(session_id, str) or not session_id:
+                raise RuntimeInvalidRequestError("sessionId is required")
+            result = await runtime.get_session_configuration(session_id) if method.endswith(".get") else await runtime.update_session_configuration(session_id, params)
+            return self._runtime_result(runtime, result)
+        if method in WORKFLOW_RPC:
+            runtime = self._resolve_agent_runtime(params)
+            values = {key: value for key, value in params.items() if key not in {"runtime", "runtimeId", "runtimeType"}}
+            result = await runtime.execute_workflow(RuntimeWorkflowRequest(WORKFLOW_RPC[method], values))
+            return self._runtime_result(runtime, dict(result.values))
         if method == "runtime.discover":
             return await self.discover_runtimes(params)
         if method == "runtime.configSchema":
@@ -176,10 +202,7 @@ class RuntimeRpcHandler:
         if method == "runtime.modelCatalog":
             runtime = self._resolve_agent_runtime(params)
             parsed = RuntimeCatalogParams.parse(params)
-            catalog = await runtime.list_model_catalog(
-                query=parsed.query,
-                limit=parsed.limit,
-            )
+            catalog = await runtime.list_scoped_model_catalog(params["sessionId"], query=parsed.query, limit=parsed.limit) if isinstance(params.get("sessionId"), str) else await runtime.list_model_catalog(query=parsed.query, limit=parsed.limit)
             return self._runtime_result(
                 runtime,
                 {"catalog": model_catalog_payload(catalog)},

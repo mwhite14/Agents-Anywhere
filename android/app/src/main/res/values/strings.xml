@@ -728,4 +728,15 @@
     <string name="notifications_mode_current_description">Only the session you are viewing</string>
     <string name="notifications_mode_all_description">Every session, even after you leave the app</string>
     <string name="notifications_mode_pick_title">Notify me about</string>
+    <string name="native_history_title">Native history</string>
+    <string name="native_history_continue">Continue task</string>
+    <string name="native_history_release">End AA execution</string>
+    <string name="native_history_preparing">Preparing execution…</string>
+    <string name="native_history_release_hint">Wait for AA execution to end before resuming this session in the CLI.</string>
+    <string name="native_history_browse_hint">Exit this session in the CLI before continuing it here.</string>
+    <string name="native_history_confirm_hint">AA will preserve this native session and save subsequent history. Keep this session closed in the CLI while AA is using it.</string>
+    <string name="native_history_cli_exited">I have exited this session in the CLI</string>
+    <string name="native_history_check">Check recovery status</string>
+    <string name="native_history_releasing">Ending execution…</string>
+    <string name="session_image_input_unsupported">The selected model does not declare image input support. Remove the image or choose another model.</string>
 </resources>

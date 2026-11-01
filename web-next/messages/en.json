@@ -333,6 +333,7 @@
       "attach": "Attach files",
       "attachmentLimit": "Up to {count} files",
       "attachmentsUnsupported": "This runtime does not support attachments. Remove them or choose another runtime.",
+      "imageInputUnsupported": "The selected model does not declare image input support. Remove the image or choose another model.",
       "attachmentTypesUnsupported": "Only these attachment types are supported: {types}.",
       "createSession": "Create session",
       "creating": "Creating session...",
@@ -1111,6 +1112,23 @@
         "reviewOpenFilePreview": "Open full preview for {file}",
         "reviewPreviewBlocked": "The file preview window was blocked.",
         "reviewDiffCard": "Change {index} of {count}"
+      },
+      "nativeHistory": {
+        "title": "Native history",
+        "continue": "Continue task",
+        "release": "End AA execution",
+        "preparing": "Preparing execution…",
+        "active": "AA is using this session",
+        "activeHint": "End AA execution and wait for release before resuming this session in the CLI.",
+        "browseHint": "History is available. Exit this session in the CLI before continuing it here.",
+        "confirmHint": "AA will preserve the native session identity and save subsequent history. Exit this session in the CLI and keep it closed there while AA is using it.",
+        "cliExited": "I have exited this session in the CLI",
+        "cancel": "Cancel",
+        "failed": "Recovery failed. History remains available.",
+        "unknown": "Recovery is unconfirmed. Check the existing operation.",
+        "check": "Check recovery status",
+        "releaseFailed": "Execution release is unconfirmed. Refresh the session state.",
+        "releasing": "Ending execution…"
       }
     },
     "sessionStatus": {

@@ -20,7 +20,37 @@
     "retry": "Retry",
     "backendStoppedTitle": "The Desktop background service stopped",
     "backendStoppedDescription": "The local Connector, devices and settings all depend on it. Click Restart to recover. If this keeps happening, report it with the error and logs below.",
-    "restartBackend": "Restart"
+    "restartBackend": "Restart",
+    "startingRpc": "Environment ready. Starting Connector…",
+    "preparingDescription": "Dependency installation can take a while. Connector will start when it finishes.",
+    "cancelled": "Environment preparation cancelled",
+    "cancelledDescription": "The installer has stopped. You can start again.",
+    "cancel": "Cancel preparation",
+    "cancelling": "Stopping…",
+    "stalled": "No activity detected recently. Installation may be stalled. View logs, or cancel and retry with another mirror.",
+    "packageProgress": "{completed} installed / {total} resolved dependencies",
+    "environmentPhase": {
+      "checking": "Checking environment",
+      "downloading": "Downloading dependencies",
+      "resolving": "Resolving dependencies",
+      "building": "Building dependencies",
+      "syncing": "Syncing environment",
+      "ready": "Environment ready",
+      "failed": "Preparation failed",
+      "cancelled": "Cancelled"
+    },
+    "environmentError": {
+      "network": "Download failed. Try another mirror.",
+      "resolution": "Dependency resolution failed. See conflict details below.",
+      "permission": "Permission denied. Check access to the path below.",
+      "disk": "Not enough disk space. Free space and retry.",
+      "process": "Installer failed. See exit code and logs below.",
+      "busy": "Another Desktop or installer is using this environment. Retry after it exits.",
+      "unknown": "Environment preparation failed. See logs for details."
+    },
+    "preparingTitle": "Preparing Connector environment",
+    "copyOutput": "Copy output",
+    "environmentFailedDescription": "The environment is incomplete. Use the error below to resolve the problem and retry, or view the logs."
   },
   "app": {
     "name": "Agents Anywhere"
@@ -358,6 +388,7 @@
       "attach": "Attach files",
       "attachmentLimit": "Up to {count} files",
       "attachmentsUnsupported": "This runtime does not support attachments. Remove them or choose another runtime.",
+      "imageInputUnsupported": "The selected model does not declare image input support. Remove the image or choose another model.",
       "attachmentTypesUnsupported": "Only these attachment types are supported: {types}.",
       "createSession": "Create session",
       "creating": "Creating session...",
@@ -1149,7 +1180,24 @@
       "fileChangeUnknown": "Changed",
       "showCode": "Show code",
       "hideCode": "Hide code",
-      "loadCodeFailed": "Failed to load code"
+      "loadCodeFailed": "Failed to load code",
+      "nativeHistory": {
+        "title": "Native history",
+        "continue": "Continue task",
+        "release": "End AA execution",
+        "preparing": "Preparing execution…",
+        "active": "AA is using this session",
+        "activeHint": "End AA execution and wait for release before resuming this session in the CLI.",
+        "browseHint": "History is available. Exit this session in the CLI before continuing it here.",
+        "confirmHint": "AA will preserve the native session identity and save subsequent history. Exit this session in the CLI and keep it closed there while AA is using it.",
+        "cliExited": "I have exited this session in the CLI",
+        "cancel": "Cancel",
+        "failed": "Recovery failed. History remains available.",
+        "unknown": "Recovery is unconfirmed. Check the existing operation.",
+        "check": "Check recovery status",
+        "releaseFailed": "Execution release is unconfirmed. Refresh the session state.",
+        "releasing": "Ending execution…"
+      }
     },
     "sessionStatus": {
       "idle": "Idle",

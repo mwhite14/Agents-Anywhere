@@ -16,6 +16,10 @@ final class SessionChatModel {
     private(set) var isLoadingSettings = false
     var error: String?
     var settingsError: String?
+    private(set) var nativeHistoryBusy = false
+    var nativeHistoryError: String?
+    @ObservationIgnored private var nativeRecovery: (id: String, generation: String, revision: String)?
+    var hasNativeRecovery: Bool { nativeRecovery != nil }
     private(set) var isOpeningPrepared = false
     var isOpeningReady: Bool { isOpeningPrepared && timeline.hasPresentedSnapshot }
     private(set) var openingError: String?
@@ -33,11 +37,12 @@ final class SessionChatModel {
     @ObservationIgnored var onDiscardCreation: (() -> Void)?
     @ObservationIgnored let repository: V2SessionRepository
     @ObservationIgnored private let attachments: V2AttachmentService
+    @ObservationIgnored private let workflowAPI: V2RuntimeWorkflowAPI?
     @ObservationIgnored private let files: V2WorkspaceFilesService?
 
-    init(session: V2SessionModel, repository: V2SessionRepository, attachments: V2AttachmentService, files: V2WorkspaceFilesService? = nil) {
+    init(session: V2SessionModel, repository: V2SessionRepository, attachments: V2AttachmentService, files: V2WorkspaceFilesService? = nil, workflowAPI: V2RuntimeWorkflowAPI? = nil) {
         self.session = session; self.repository = repository; self.attachments = attachments
-        self.files = files
+        self.files = files; self.workflowAPI = workflowAPI
         // Cached history can still be expensive to project. prepareOpening()
         // performs that work after the page's navigation transition settles.
     }
@@ -78,6 +83,8 @@ final class SessionChatModel {
         if session.failure?.kind == .authentication { return String(localized: "登录状态需要重新验证，已填写的内容会保留。") }
         return String(localized: "正在确认 Agent 的最新状态，已填写的内容会保留。")
     }
+
+
     var canAttach: Bool { session.runtime.allows("runtime.attachment") }
     var canChangeTakeover: Bool {
         session.isValid && session.connection == .connected && session.metadata?.connectorStatus == .online
@@ -241,6 +248,53 @@ final class SessionChatModel {
         if session.runtime.isFresh { takeoverUncertain = false; takeoverError = nil }
     }
 
+    func continueNativeTask() async {
+        guard !nativeHistoryBusy, let workflowAPI, let state = session.runtime.state else { return }
+        nativeHistoryBusy = true; nativeHistoryError = nil
+        defer { nativeHistoryBusy = false }
+        do {
+            if nativeRecovery == nil {
+                guard let generation = state.metadata["ownerGeneration"]?.stringValue,
+                      let revision = state.metadata["sourceRevision"]?.stringValue else { return }
+                if session.metadata?.takeover != true { try await repository.setTakeover(sessionId: session.id, enabled: true) }
+                nativeRecovery = (UUID().uuidString, generation, revision)
+            }
+            guard let request = nativeRecovery else { return }
+            for _ in 0..<360 {
+                guard session.isValid, !Task.isCancelled else { return }
+                let result = try await workflowAPI.recover(sessionID: session.id, generation: request.generation,
+                    operationID: request.id, sourceRevision: request.revision)
+                switch result["phase"]?.stringValue {
+                case "completed": nativeRecovery = nil; await session.refresh(); return
+                case "running": try await Task.sleep(for: .seconds(1))
+                case "rejected", "failed":
+                    nativeRecovery = nil
+                    throw NSError(domain: "NativeHistory", code: 1, userInfo: [NSLocalizedDescriptionKey:
+                        result["failure"]?["message"]?.stringValue ?? String(localized: "恢复失败，历史仍可查看。")])
+                default: throw NSError(domain: "NativeHistory", code: 2, userInfo: [NSLocalizedDescriptionKey: String(localized: "恢复结果尚未确认，请查询原操作状态。")])
+                }
+            }
+            nativeHistoryError = String(localized: "恢复结果尚未确认，请查询原操作状态。")
+        } catch {
+            if let status = (error as? HTTPError)?.statusCode, (400..<500).contains(status) { nativeRecovery = nil }
+            if !Task.isCancelled { nativeHistoryError = error.localizedDescription; await session.refresh() }
+        }
+    }
+
+    func endNativeTask() async {
+        guard !nativeHistoryBusy, let workflowAPI,
+              let generation = session.runtime.state?.metadata["ownerGeneration"]?.stringValue else { return }
+        nativeHistoryBusy = true; nativeHistoryError = nil
+        defer { nativeHistoryBusy = false }
+        do {
+            let result = try await workflowAPI.closeSession(sessionID: session.id, generation: generation)
+            if result["closed"] != .bool(true) {
+                nativeHistoryError = String(localized: "尚未确认执行实例已释放，请刷新状态。")
+            }
+            await session.refresh()
+        } catch { nativeHistoryError = error.localizedDescription }
+    }
+
     func loadSettings() async {
         guard !isLoadingSettings, session.isValid else { return }
         guard session.runtime.isFresh else { settingsError = String(localized: "连接恢复后可更改对话选项。"); return }
@@ -298,6 +352,11 @@ final class SessionChatModel {
         draft.text = text
         let selected = draft.attachments
         guard selected.isEmpty || canAttach else { return }
+        if case let .array(inputs) = session.runtime.capabilities?.capability(id: "runtime.attachment")?.metadata?["inputModalities"],
+           !inputs.contains(.string("image")), selected.contains(where: { AgentForm.isModelImage($0.local.mediaType) }) {
+            fail(String(localized: "当前模型声明不支持图片输入，请移除图片或切换模型。"))
+            return
+        }
         isWorking = true
         error = nil
         defer { isWorking = false }
@@ -321,7 +380,13 @@ final class SessionChatModel {
     func respond(notice: SessionNoticeModel, action: V2RuntimeNoticeAction) async {
         guard !isWorking, notice.canRespond(fresh: session.runtime.isFresh),
               notice.notice.actions.contains(action), notice.hasValidInput(for: action) else { return }
-        let input = notice.payload(for: action)
+        var input = notice.payload(for: action)
+        if let owner = notice.notice.metadata["ownerGeneration"]?.stringValue,
+           let revision = notice.notice.metadata["requestRevision"]?.intValue {
+            var envelope: [String: JSONValue] = ["ownerGeneration": .string(owner), "requestRevision": .number(Double(revision)), "responseOperationId": .string(UUID().uuidString)]
+            if let input { envelope["response"] = input }
+            input = .object(envelope)
+        }
         notice.begin(actionID: action.id)
         isWorking = true
         defer { isWorking = false }
@@ -330,6 +395,19 @@ final class SessionChatModel {
             notice.accepted()
             if notice.submission == .accepted { responseRevision += 1 }
         } catch { notice.fail(error) }
+    }
+
+    func respondRuntimeDialog(notice: SessionNoticeModel, actionID: String, value: JSONValue?) async {
+        guard !isWorking, notice.canRespond(fresh: session.runtime.isFresh),
+              notice.notice.actions.contains(where: { $0.id == actionID }),
+              let owner = notice.notice.metadata["ownerGeneration"]?.stringValue,
+              let revision = notice.notice.metadata["requestRevision"]?.intValue else { return }
+        var body: [String: JSONValue] = ["ownerGeneration": .string(owner), "requestRevision": .number(Double(revision)), "responseOperationId": .string(UUID().uuidString)]
+        if let value { body["response"] = value }
+        notice.begin(actionID: actionID); isWorking = true
+        defer { isWorking = false }
+        do { try await repository.respond(sessionId: session.id, noticeId: notice.id, actionId: actionID, input: .object(body)); notice.accepted() }
+        catch { notice.fail(error) }
     }
 
     @discardableResult func perform(_ operation: () async throws -> Void) async -> Bool {
