@@ -1154,6 +1154,7 @@ def test_connector_projects_inventory_capabilities_to_protocol_ids() -> None:
                         "interruptTurn": True,
                         "commands": True,
                         "interactions": True,
+                        "sessionArchive": True,
                     },
                 },
                 {
@@ -1190,6 +1191,8 @@ def test_connector_projects_inventory_capabilities_to_protocol_ids() -> None:
     assert by_runtime_and_id[("dsh", "session.interrupt")]["available"] is True
     assert by_runtime_and_id[("dsh", "session.commands")]["available"] is True
     assert by_runtime_and_id[("dsh", "runtime.config")]["available"] is True
+    assert by_runtime_and_id[("dsh", "sessionArchive")]["available"] is True
+    assert ("codex", "sessionArchive") not in by_runtime_and_id
     assert ("unknown-agent", "catalog.model") not in by_runtime_and_id
     assert payload["revision"] == 42
 
