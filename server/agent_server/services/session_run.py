@@ -58,7 +58,6 @@ from agent_server.services.usage_events import (
     session_created_event,
 )
 
-
 # Runtime capability a Connector advertises when its runtime owns the archive
 # flag (DSH hides an archived session in its own client too).
 SESSION_ARCHIVE_CAPABILITY = "sessionArchive"
