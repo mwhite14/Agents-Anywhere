@@ -35,6 +35,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.agentsanywhere.app.R
+import com.agentsanywhere.app.ui.screens.modelconfig.runtimeMaturityLabel
 import com.agentsanywhere.app.feature.files.canonicalRemoteDirectoryPath
 import com.agentsanywhere.app.feature.files.displayRemotePath
 import com.agentsanywhere.app.feature.files.isSelectableRemoteDirectory
@@ -580,6 +581,7 @@ fun NewSessionScreen(
                     NewSessionConfigurationOption(
                         id = runtime.id,
                         label = runtime.labels.primary,
+                        description = runtimeMaturityLabel(runtime.maturity),
                     )
                 },
                 enabled = !creatingProject && selectedDevice != null && runtimeSelection.runtimes.isNotEmpty(),
@@ -709,6 +711,7 @@ fun NewSessionScreen(
                 runtimeName = runtime.name,
                 selections = runtimeSelection.selections,
                 attachmentsEnabled = runtimeSelection.canUseAttachments,
+                goalsEnabled = runtimeSelection.capabilities.data?.find("session.goal",runtime.id,runtime.type)?.usable == true,
                 preparedWorkspace = preparedRuntimeWorkspace,
             ),
         )
