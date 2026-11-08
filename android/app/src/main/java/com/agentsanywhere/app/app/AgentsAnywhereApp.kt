@@ -134,6 +134,13 @@ fun AgentsAnywhereApp(
         lastViewedSessionId = selectedSessionId,
     )
 
+    // Opening a session from the list clears its mute too, so a session that was
+    // muted by an earlier wait notification alerts again on its next turn.
+    LaunchedEffect(selectedSessionId) {
+        val sessionId = selectedSessionId ?: return@LaunchedEffect
+        SessionNotifications.onSessionOpened(context, sessionId)
+    }
+
     // A tapped session notification opens that session and clears its mute, so a
     // later finished turn notifies again.
     LaunchedEffect(notificationSessionId) {

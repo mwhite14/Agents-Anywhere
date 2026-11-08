@@ -67,6 +67,7 @@
 
 ### Android
 
+- 会话通知不会再因为一次「等待回复」而永久静音：回合结束和等待批准的通知照常弹出，在列表里打开会话或该会话继续运行时也会解除静音。
 - Android 的「模型渠道」与 Web、Desktop 相同：首页列出渠道和「已应用」，点进渠道后再应用、查看配置和 Runtime；Tokens Anywhere 按「账户／模型与连接／Runtime」分页，可以退出账户。（[#515](https://github.com/anywhere-labs/Agents-Anywhere/pull/515)）
 
 ### iOS
