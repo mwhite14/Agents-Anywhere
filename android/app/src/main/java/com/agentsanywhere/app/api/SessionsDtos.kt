@@ -56,6 +56,7 @@ data class RemoteSessionsMutationResponse(
 )
 
 data class RemoteSessionCreateAndStartRequest(
+    val goalIntent: Boolean = false,
     val planningIntent: Boolean = false,
     val connectorId: String,
     val projectId: String,
