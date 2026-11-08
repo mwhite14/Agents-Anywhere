@@ -27,7 +27,13 @@ class SessionNotificationCenter(private val context: Context) {
     private val mutedSessionIds = mutableSetOf<String>()
 
     fun post(event: SessionNotificationEvent) {
-        if (mutedSessionIds.contains(event.sessionId)) return
+        if (mutedSessionIds.contains(event.sessionId)) {
+            // The mute only silences a wait that was already announced. Any other
+            // edge proves the session moved past that wait, so the mute clears and
+            // later turns alert again instead of the session staying muted for good.
+            if (event.waitingForInput) return
+            unmute(event.sessionId)
+        }
         if (!canNotify()) return
         ensureChannel()
         val manager = context.getSystemService(NotificationManager::class.java) ?: return
