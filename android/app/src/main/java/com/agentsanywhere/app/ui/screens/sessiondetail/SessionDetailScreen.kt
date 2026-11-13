@@ -156,7 +156,9 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.util.UUID
+import java.io.ByteArrayOutputStream
 import java.io.File
+import java.io.InputStream
 import java.security.MessageDigest
 import java.util.concurrent.atomic.AtomicBoolean
 
@@ -2478,7 +2480,7 @@ private fun Context.pendingAttachment(uri: Uri): PendingAttachment? {
 
 private fun Context.uploadPart(attachment: PendingAttachment): UploadFilePart {
     val bytes = contentResolver.openInputStream(attachment.uri)?.use { input ->
-        input.readBytes()
+        readAttachmentBytes(input, attachment.name)
     } ?: throw IllegalStateException(getString(R.string.session_upload_file_read_failed, attachment.name))
     if (bytes.isEmpty()) throw IllegalStateException(getString(R.string.session_upload_file_empty, attachment.name))
     if (bytes.size > MAX_ATTACHMENT_BYTES) {
@@ -2493,6 +2495,28 @@ private fun Context.uploadPart(attachment: PendingAttachment): UploadFilePart {
         mediaType = mediaType,
         bytes = bytes,
     )
+}
+
+/**
+ * Reads a picked file without ever holding more than [MAX_ATTACHMENT_BYTES] in
+ * memory. Reading the whole stream first made an oversized pick die with
+ * OutOfMemoryError — an Error, so the callers' `catch (Exception)` never saw it
+ * and the size check below could not reject the file. The read is bounded here
+ * instead, and the same "file too large" message is thrown as soon as the limit
+ * is crossed.
+ */
+private fun Context.readAttachmentBytes(input: InputStream, name: String): ByteArray {
+    val buffer = ByteArray(ATTACHMENT_READ_BUFFER_BYTES)
+    val output = ByteArrayOutputStream(ATTACHMENT_READ_BUFFER_BYTES)
+    while (true) {
+        val read = input.read(buffer)
+        if (read < 0) break
+        if (output.size() + read > MAX_ATTACHMENT_BYTES) {
+            throw IllegalStateException(getString(R.string.session_attachment_file_too_large, name))
+        }
+        output.write(buffer, 0, read)
+    }
+    return output.toByteArray()
 }
 
 private fun UploadFilePart.toNewSessionAttachmentPart(): NewSessionAttachmentPart =
@@ -2587,3 +2611,4 @@ private fun uniqueGalleryFile(directory: File, displayName: String): File {
 
 private const val MAX_ATTACHMENT_FILES = 6
 private const val MAX_ATTACHMENT_BYTES = 25 * 1024 * 1024
+private const val ATTACHMENT_READ_BUFFER_BYTES = 64 * 1024
