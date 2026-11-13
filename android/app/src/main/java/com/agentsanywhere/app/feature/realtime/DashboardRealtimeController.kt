@@ -1,10 +1,12 @@
 package com.agentsanywhere.app.feature.realtime
 
+import android.util.Log
 import com.agentsanywhere.app.api.RealtimeTransport
 import com.agentsanywhere.app.api.RemoteDashboardSnapshot
 import com.agentsanywhere.app.feature.auth.AuthSessionReader
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -15,7 +17,6 @@ import kotlinx.coroutines.withTimeoutOrNull
 import okhttp3.Response
 import okhttp3.WebSocket
 import okhttp3.WebSocketListener
-import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicReference
 
 class DashboardRealtimeController(
@@ -25,6 +26,12 @@ class DashboardRealtimeController(
     private val retryDelay: (Int) -> Long = ::reconnectDelayMillis,
     private val firstSnapshotTimeoutMillis: Long = 2_500L,
 ) {
+    private val scopeGuard = CoroutineExceptionHandler { _, error ->
+        // start() runs inside the caller's composition scope, so an exception that
+        // escapes a callback it invokes inline is a FATAL EXCEPTION that kills the
+        // process. Log it instead, the way SessionRealtimeController does.
+        Log.w(REALTIME_LOG_TAG, "Dashboard realtime coroutine failed", error)
+    }
     private val retryNow = Channel<Unit>(Channel.CONFLATED)
     private val activeSocket = AtomicReference<WebSocket?>()
     private val activeJob = AtomicReference<Job?>()
@@ -40,7 +47,7 @@ class DashboardRealtimeController(
         onConnectionChanged: (connected: Boolean, attempt: Int) -> Unit = { _, _ -> },
         onInitialFailure: () -> Unit = {},
     ): Job {
-        val job = scope.launch(Dispatchers.IO) {
+        val job = scope.launch(Dispatchers.IO + scopeGuard) {
         var attempt = 0
         var initialFailureReported = false
         while (isActive) {
@@ -51,14 +58,12 @@ class DashboardRealtimeController(
             val incoming = Channel<String>(Channel.UNLIMITED)
             var socket: WebSocket? = null
             var receivedSnapshot = false
-            val opened = AtomicBoolean(false)
             val openSignal = CompletableDeferred<Boolean>()
             try {
                 val ticket = transport.createDashboardTicket(serverUrl, accessToken, clientId)
                 socket = transport.openWebSocket(
                     transport.dashboardWebSocketUrl(serverUrl, ticket.ticket),
                     channelListener(incoming) {
-                        opened.set(true)
                         openSignal.complete(true)
                         onConnectionChanged(true, 0)
                     }.also { listener -> listener.onTerminated = { openSignal.complete(false) } },
@@ -86,7 +91,6 @@ class DashboardRealtimeController(
                         receivedSnapshot = true
                         onSnapshot(snapshot)
                     }
-                    attempt = 0
                 }
             } catch (cancelled: CancellationException) {
                 throw cancelled
@@ -102,7 +106,11 @@ class DashboardRealtimeController(
                 onConnectionChanged(false, attempt)
             }
             if (!isActive) break
-            if (opened.get() || receivedSnapshot) attempt = 0 else attempt = (attempt + 1).coerceAtMost(30)
+            // A socket that opens and then closes without a parsed snapshot (the
+            // server failing the dashboard snapshot, or an unparseable payload) has
+            // not delivered anything usable, so escalate instead of re-ticketing
+            // every second. Only a received snapshot proves the stream works.
+            if (receivedSnapshot) attempt = 0 else attempt = (attempt + 1).coerceAtMost(30)
             val requested = withTimeoutOrNull(retryDelay(attempt)) { retryNow.receive() } != null
             if (requested) attempt = 0
         }
@@ -110,6 +118,10 @@ class DashboardRealtimeController(
         activeJob.getAndSet(job)?.cancel()
         job.invokeOnCompletion { activeJob.compareAndSet(job, null) }
         return job
+    }
+
+    private companion object {
+        const val REALTIME_LOG_TAG = "DashboardRealtime"
     }
 }
 
