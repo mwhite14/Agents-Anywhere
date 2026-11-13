@@ -231,8 +231,18 @@ def _latest_item_at(latest_item: Any) -> Any:
 
     payload = cast(latest_item.c.payload_json, JSON)
 
+    # PostgreSQL cannot turn a ``json`` value that carries a NUL escape back into
+    # text (22P05), and extracting one field re-serializes the whole document, so
+    # a single legacy row written before timeline payloads stripped NUL bytes
+    # aborts the entire list query. Fall back to the joined item time for those
+    # rows instead of failing the request.
+    has_nul_escape = func.strpos(latest_item.c.payload_json, literal("\\u0000")) > 0
+
     def field(name: str) -> Any:
-        return func.nullif(payload[name].as_string(), "")
+        return case(
+            (has_nul_escape, None),
+            else_=func.nullif(payload[name].as_string(), ""),
+        )
 
     return func.coalesce(field("updatedAt"), field("completedAt"), field("createdAt"))
 

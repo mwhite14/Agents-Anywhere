@@ -18,6 +18,7 @@
 
 ### 会话创建与消息交付
 
+- 工具输出里带有二进制内容（例如读取二进制文件）时，会话列表、会话详情和目标不再整页加载失败，仪表盘也不会反复断开重连；这类内容里的空字符会被丢弃。（[4206a4a1](https://github.com/anywhere-labs/Agents-Anywhere/commit/4206a4a1)）
 - 会话很多或多个会话同时运行时，会话列表的实时刷新不再拖慢 Server 数据库：同一用户的连续变化最多每 2 秒合并推送一次，部署者可用 `AGENT_SERVER_DASHBOARD_MIN_INTERVAL_SECONDS` 调整。（[#552](https://github.com/anywhere-labs/Agents-Anywhere/pull/552)）
 - Connector 断线重连或集中补传积压记录时，会话写入不再卡住数小时，也不再长期占着数据库连接、阻塞清理，进而拖垮整个服务；许多会话同时写入时，也不再全部报数据库连接超时。（[#556](https://github.com/anywhere-labs/Agents-Anywhere/pull/556)）
 
