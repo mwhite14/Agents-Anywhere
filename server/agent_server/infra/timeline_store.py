@@ -14,8 +14,34 @@ from agent_server.infra.db import timeline_items
 from agent_server.infra.db.engine import read_connection
 
 
+def _strip_nul(value: Any) -> Any:
+    """Drop U+0000 from every string in a timeline payload.
+
+    Tool output is stored verbatim, so binary files read with ``cat`` can carry
+    NUL bytes. ``json.dumps`` then writes them as the escape ``\\u0000``, and
+    PostgreSQL cannot produce a text value from that escape: every reader that
+    casts the stored payload back to ``json`` (session lists, dashboard
+    snapshots, session detail, goals) fails with 22P05
+    ``unsupported Unicode escape sequence`` even when it only extracts an
+    unrelated field. Remove the character before serializing.
+    """
+
+    if isinstance(value, str):
+        return value.replace("\x00", "")
+    if isinstance(value, dict):
+        return {_strip_nul(key): _strip_nul(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_strip_nul(item) for item in value]
+    return value
+
+
 def _json_dumps(value: Any) -> str:
-    return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    return json.dumps(
+        _strip_nul(value),
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    )
 
 
 _UPSERT_COLUMN_TYPES: dict[str, Any] = {
