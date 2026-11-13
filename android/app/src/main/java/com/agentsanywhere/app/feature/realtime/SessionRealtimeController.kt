@@ -1,11 +1,13 @@
 package com.agentsanywhere.app.feature.realtime
 
+import android.util.Log
 import com.agentsanywhere.app.api.RealtimeTransport
 import com.agentsanywhere.app.api.RemoteSessionEventEnvelope
 import com.agentsanywhere.app.api.eventCursorSequence
 import com.agentsanywhere.app.feature.auth.AuthSessionReader
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -33,6 +35,12 @@ class SessionRealtimeController(
     private val activeConnectionGeneration = AtomicLong(0)
     private val runtimeRefreshSequence = AtomicLong(0)
     private val activeRuntimeRefreshGeneration = AtomicLong(0)
+    private val scopeGuard = CoroutineExceptionHandler { _, error ->
+        // A dropped socket or a timed-out recovery request must never reach the
+        // caller's scope: start() is driven from a composition scope, and an
+        // uncaught exception there is a FATAL EXCEPTION that kills the process.
+        Log.w(REALTIME_LOG_TAG, "Realtime coroutine failed", error)
+    }
 
     fun isCurrentConnection(generation: Long): Boolean = activeConnectionGeneration.get() == generation
 
@@ -56,10 +64,21 @@ class SessionRealtimeController(
         onRuntimeRefreshRequired: suspend (connectionGeneration: Long, refreshGeneration: Long) -> Unit,
         onConnectionChanged: (connected: Boolean, recovering: Boolean, attempt: Int, error: String?) -> Unit,
     ): Job {
-        val job = scope.launch(Dispatchers.IO) {
+        val job = scope.launch(Dispatchers.IO + scopeGuard) {
         var attempt = 0
         var hasConnected = false
         var lastSnapshotRequiredCursor: String? = null
+
+        fun launchBestEffort(tag: String, block: suspend CoroutineScope.() -> Unit): Job =
+            launch {
+                try {
+                    block()
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (error: Exception) {
+                    Log.w(REALTIME_LOG_TAG, "Realtime background task failed: $tag", error)
+                }
+            }
         suspend fun requestSnapshotOnce(reason: String, connectionGeneration: Long) {
             if (!isCurrentConnection(connectionGeneration)) return
             val currentCursor = cursor()
@@ -112,14 +131,14 @@ class SessionRealtimeController(
                     val refreshGeneration = runtimeRefreshSequence.incrementAndGet()
                     latestRuntimeRefreshGeneration = refreshGeneration
                     activeRuntimeRefreshGeneration.set(refreshGeneration)
-                    runtimeRefreshJob = launch {
+                    runtimeRefreshJob = launchBestEffort("runtime-refresh") {
                         onRuntimeRefreshRequired(connectionGeneration, refreshGeneration)
                     }
                 }
 
                 fun recoverFrom(recoveryCursor: String) {
                     recoveryJob?.cancel()
-                    recoveryJob = launch {
+                    recoveryJob = launchBestEffort("session-recovery") {
                         try {
                             recover(
                                 serverUrl = serverUrl,
@@ -185,7 +204,7 @@ class SessionRealtimeController(
                             }
                         }
                         "session.refetch_required" -> {
-                            launch { requestSnapshotOnce("session.refetch_required", connectionGeneration) }
+                            launchBestEffort("refetch-snapshot") { requestSnapshotOnce("session.refetch_required", connectionGeneration) }
                         }
                         "runtime.refetch_required" -> {
                             refreshRuntime()
@@ -259,6 +278,7 @@ class SessionRealtimeController(
     }
 
     private companion object {
+        const val REALTIME_LOG_TAG = "SessionRealtime"
         const val MAX_RECOVERY_PAGES = 8
         const val MAX_TIMELINE_EVENT_BATCH_SIZE = 100
         const val MAX_WIRE_EVENT_BATCH_SIZE = 128
