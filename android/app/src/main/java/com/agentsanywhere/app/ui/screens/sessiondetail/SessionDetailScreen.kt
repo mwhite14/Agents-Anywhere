@@ -11,6 +11,7 @@ import android.os.Build
 import android.os.Environment
 import android.provider.OpenableColumns
 import android.provider.MediaStore
+import android.util.Log
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
@@ -1163,7 +1164,14 @@ fun SessionDetailScreen(
 
     DisposableEffect(context, sessionId) {
         if (sessionId != null) {
-            RemoteTerminalForegroundService.start(context)
+            // Android 12+ refuses a foreground-service start from a background
+            // state. The terminal simply does not start then; it must not kill
+            // the process from a composition effect.
+            try {
+                RemoteTerminalForegroundService.start(context)
+            } catch (error: Exception) {
+                Log.w(SESSION_DETAIL_LOG_TAG, "Remote terminal foreground service did not start", error)
+            }
         }
         onDispose {
             if (sessionId != null) {
@@ -2612,3 +2620,4 @@ private fun uniqueGalleryFile(directory: File, displayName: String): File {
 private const val MAX_ATTACHMENT_FILES = 6
 private const val MAX_ATTACHMENT_BYTES = 25 * 1024 * 1024
 private const val ATTACHMENT_READ_BUFFER_BYTES = 64 * 1024
+private const val SESSION_DETAIL_LOG_TAG = "SessionDetail"

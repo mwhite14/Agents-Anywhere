@@ -5,6 +5,7 @@ import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
 import android.net.Network
 import android.net.Uri
+import android.util.Log
 import android.widget.Toast
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -645,7 +646,13 @@ fun AgentsAnywhereApp(
             notificationMode = mode
             SessionNotificationSettings.setMode(context, mode)
             if (mode == SessionNotificationMode.ALL_SESSIONS) {
-                SessionNotificationForegroundService.start(context)
+                // Android 12+ refuses a foreground-service start from a background
+                // state; keep the saved mode but let the service stay down.
+                try {
+                    SessionNotificationForegroundService.start(context)
+                } catch (error: Exception) {
+                    Log.w(APP_LOG_TAG, "Session notification foreground service did not start", error)
+                }
             } else {
                 SessionNotificationForegroundService.stop(context)
             }
@@ -1040,6 +1047,8 @@ private val NewSessionDraftSaver = listSaver<NewSessionDraft?, Any>(
         }
     },
 )
+
+private const val APP_LOG_TAG = "AgentsAnywhereApp"
 
 @Preview(showBackground = true, widthDp = 390, heightDp = 844)
 @Composable

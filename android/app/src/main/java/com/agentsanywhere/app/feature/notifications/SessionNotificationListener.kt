@@ -3,6 +3,7 @@ package com.agentsanywhere.app.feature.notifications
 import android.Manifest
 import android.app.Activity
 import android.os.Build
+import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
@@ -37,7 +38,13 @@ fun SessionNotificationListenerEffect(
         val signedIn = authStore.readAccessToken().isNotBlank()
         val mode = SessionNotificationSettings.mode(context)
         if (signedIn && mode == SessionNotificationMode.ALL_SESSIONS) {
-            SessionNotificationForegroundService.start(context)
+            // Android 12+ refuses a foreground-service start from a background
+            // state; notifications then stay off instead of the app crashing.
+            try {
+                SessionNotificationForegroundService.start(context)
+            } catch (error: Exception) {
+                Log.w(NOTIFICATIONS_LOG_TAG, "Session notification foreground service did not start", error)
+            }
             if (canAsk && !SessionNotificationSettings.permissionRequested(context)) {
                 SessionNotificationSettings.markPermissionRequested(context)
                 permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
@@ -47,6 +54,8 @@ fun SessionNotificationListenerEffect(
         }
     }
 }
+
+private const val NOTIFICATIONS_LOG_TAG = "SessionNotifications"
 
 /**
  * Posts in-app notifications from the dashboard snapshots the main screen already
