@@ -69,6 +69,9 @@
 ### Android
 
 - 会话打开时网络中断或服务器重启，重新连上后补拉历史事件失败，不再让整个应用闪退，只在后台重试。（[a1a50be5](https://github.com/anywhere-labs/Agents-Anywhere/commit/a1a50be5)）
+- 服务器不可用时，仪表盘的实时连接改为逐次退避重试，不再每秒重连一次、持续耗电。（[90d9ce61](https://github.com/anywhere-labs/Agents-Anywhere/commit/90d9ce61)）
+- 选择超过 25 MB 的附件时直接提示文件过大，不再因为把整个文件读进内存而闪退。（[b6174966](https://github.com/anywhere-labs/Agents-Anywhere/commit/b6174966)）
+- 系统不允许在后台启动终端或通知服务时，应用不再闪退，相应服务只是不启动。（[62f9ec81](https://github.com/anywhere-labs/Agents-Anywhere/commit/62f9ec81)）
 - 会话通知不会再因为一次「等待回复」而永久静音：回合结束和等待批准的通知照常弹出，在列表里打开会话或该会话继续运行时也会解除静音。
 - Android 的「模型渠道」与 Web、Desktop 相同：首页列出渠道和「已应用」，点进渠道后再应用、查看配置和 Runtime；Tokens Anywhere 按「账户／模型与连接／Runtime」分页，可以退出账户。（[#515](https://github.com/anywhere-labs/Agents-Anywhere/pull/515)）
 
